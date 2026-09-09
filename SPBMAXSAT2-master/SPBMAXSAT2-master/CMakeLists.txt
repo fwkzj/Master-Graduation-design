@@ -32,3 +32,13 @@ target_include_directories(spbmaxsat PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Command-line solver.
 add_executable(solver src/main.cpp)
 target_link_libraries(solver PRIVATE spbmaxsat)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(instance_parser_test tests/instance_parser_test.cpp)
+    target_link_libraries(instance_parser_test PRIVATE spbmaxsat)
+    add_test(
+        NAME instance_parser_standard_wcnf
+        COMMAND instance_parser_test ${CMAKE_CURRENT_BINARY_DIR}
+    )
+endif()
