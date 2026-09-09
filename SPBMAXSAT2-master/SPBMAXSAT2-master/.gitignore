@@ -1,0 +1,12 @@
+# Ignore build output
+build/
+
+# Ignore other common files
+.vscode/
+*.o
+*.out
+*.log
+*.swp
+*~
+.DS_Store
+.clangd
