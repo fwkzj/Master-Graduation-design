@@ -1,98 +1,47 @@
- ## 工作环境与文件真源
- 
- 本项目唯一工作环境是服务器 S122（222.20.99.55），用户 fwkzj。所有代码、测试、配置、实验清单、解压实例、日志、图表、论文计划和文档都必须直接写入 /home/fwkzj/HybridAlgorithm 或其明确的服务器子目录。服务器副本是唯一真源；不得在本地工作区创建、修改或维护项目副本，也不得先在本地完成后再上传。
- 
- 公共数据只读使用 /data/dataset/Maxsat，不得修改。任何临时文件必须放入服务器项目的 work/、build/ 或 runs/ 目录并写入日志。
-# WPMS 混合求解实验：协作与执行指南
+# HybridMaxSAT 工作约定
 
-## 目标与角色
+## 当前工作位置
 
-本项目研究加权部分 MaxSAT（WPMS）的混合求解：**CASHWMaxSAT-DisjCad-S6** 是精确求解器，负责精确结果、下界和最优性证明；**SPBMAXSAT2** 是局部搜索求解器，负责提供候选赋值和候选上界。研究对象是经过验证的上界共享与调度策略，而不是修改两套基础算法。
+服务器 S122（`fwkzj@222.20.99.55:22`）是项目的长期运行环境，目标目录为 `/home/fwkzj/HybridAlgorithm`。目前 SSH 连接超时；经用户授权，服务器恢复前可在本地镜像仓库 `D:\硕士毕设\.upload_stage_20260909\repo` 编写规划、代码与文档，并将每个可审查阶段推送至 GitHub：`git@github.com:fwkzj/Master-Graduation-design.git`。
 
-原始 WCNF 是唯一语义来源。若硬子句集合为 `H`、软子句集合为 `S`、软权重为 `w(C)`，完整赋值 `a` 的真实代价是：
+服务器恢复后，应先检查 Git 状态，再将已审查的提交同步到 `/home/fwkzj/HybridAlgorithm`，随后在服务器构建和运行。公共数据只读，路径为 `/data/dataset/Maxsat/Complete/`；不得修改其中的任何文件。
 
-```text
-cost(a) = Σ w(C)，其中 C ∈ S 且 a 不满足 C
-```
+## 研究目标
 
-局部搜索的动态权重、罚函数和内部评分不等于 `cost(a)`；它们不得作为 UB、LB、硬化条件或最优性依据。
+研究加权部分 MaxSAT（WPMS）：最小化未满足软子句的总权重。CASHWMaxSAT-DisjCad-S6 是精确求解器，负责维护下界（LB）、处理精确推理并证明最优；SPBMAXSAT2 是局部搜索求解器，负责寻找可行解并返回其目标值上界（UB）。
 
-## 已核实的环境与接口
+SPB 的数值 UB 是协同输入：它交给 CASH，由 CASH 依据自身既有规则收紧并继续推理。协同层不规定硬化公式，不传递 SPB 的完整赋值、子句集合或证明，也不把 SPB 的结果写回 CASH 的变量赋值。SPB 给出的 UB 可能帮助 CASH 达到 `LB = UB`；只有 CASH 确认 `LB = UB` 时，实例才算已证明最优。
 
-| 组件 | 位置 | 已核实事实 |
-|---|---|---|
-| 项目根目录 | `/home/fwkzj/HybridAlgorithm` | 放置融合层、配置、日志和实验结果 |
-| CASH | `CASHWMaxSAT-DisjCad-S6` | 单次命令行精确求解；输入 WCNF；可输出 `o`、`s`、`v` 行 |
-| SPB | `SPBMAXSAT2-master/SPBMAXSAT2-master` | CMake 构建 `solver` 与静态库 `spbmaxsat`；同步单线程 C++ 封装 |
-| 公共数据 | `/data/dataset/Maxsat` | 可读，约 7,891 个 WCNF/WCNF.GZ 算例、约 549 GB |
+## 已确定的协同协议
 
-CASH 的 `bin/cashwmaxsat-disjcad` 当前没有执行位。实验脚本应复制到 `build/` 后用 `install -m 700` 设置权限，避免修改原文件。CASH 的已验证选项包括 `-m`、`-cpu-lim=<seconds>`、`-mem-lim=<MB>`、`-bm`、`-no-sat`、`-no-scip` 与 `-goal=<value>`。输出含义：
+1. 每个实例先运行 CASH 15 秒。
+2. CASH 在安全检查点暂停，从当前仍有效的传播推理闭包中导出原始 WCNF 变量。只导出传播推理值；不导出分支决策、松弛变量、辅助变量或已被回溯的值。
+3. 这些值仅构成 SPB 的初始解。SPB 在其 3 秒运行中可以翻转它们；翻转绝不写回 CASH。
+4. 对未导出的原始变量，SPB 在每轮重新随机初始化。每个实例仅创建一个 SPB 对象，跨轮保留自适应子句权重，但不保留前一轮的赋值。
+5. SPB 完整运行 3 秒后，只回传该轮最佳数值 UB。若没有严格改善 CASH 的当前 UB，丢弃该值并恢复 CASH 原状态；若改善，则以最小回调交给当前暂停的 CASH。
+6. CASH 从相同的搜索状态继续，不做常规重启。CASH 一旦证明最优，立即结束该实例，不再启动 SPB。
 
-```text
-o <cost>              # 当前或最终目标值
-s OPTIMUM FOUND       # 已证明最优
-s UNSATISFIABLE       # 原问题不可满足
-s UNKNOWN             # 未完成证明
-v <0/1 string>        # 使用 -bm 时的模型
-```
+为支持此协议，CASH 只允许加入很薄的协同回调：在安全检查点导出上述部分赋值、接收数值 UB，并从相同状态继续。不要改写其精确搜索、下界、核心或硬化逻辑。
 
-在仓库样例 `satellite02ac.wcsp.wcnf` 上，CASH 在 10 秒 CPU 限制下输出 `o 1611` 和 `s OPTIMUM FOUND`。这只是命令链路的烟雾测试，不是性能结论。
+## 时间与随机性
 
-SPB 的命令行为 `./solver <input.wcnf> [options]`，支持 `-cutoff`、`-pool_size`、`-rdprob`、`-bms_num`、`-rwprob`、`-hard_sp`、`-soft_sp`、`-h_inc`、`-s_inc`。命令行只打印 `c bestcost`，不输出完整赋值，因此只能作为局部搜索基线。融合层必须链接库并使用：
+- 每实例端到端预算为 600 秒，计入 CASH、SPB 和交接开销。
+- 600 秒到达后，不启动下一个模块；当前模块完整结束后停止。若当前模块为 SPB，则接收其 UB 一次后结束；若当前模块为 CASH，则完成该 15 秒窗口后直接结束。
+- 50 个调试实例也使用 600 秒和完整协议。
+- 调试集抽样种子为 `20260909`。每实例的随机序列由该全局种子与实例相对路径导出。
+- 正式实验每个实例、每种配置运行三次，种子为 `20260909`、`20260910` 和 `20260911`。同一实例、同一重复中的 SPB、混合和无推理初始化消融使用相同的实例派生种子。
 
-```cpp
-Settings cfg;
-cfg.cutoff_time = 10;
-cfg.solution_pool_size = 1;
-spbmaxsat::LocalSearchSolver ls(instance_path, cfg);
-Solution result = ls.solve();
-// result.feasible, result.cost, result.assignment
-```
+## 数据与实验阶段
 
-`improve(initial)` 接受长度为 `num_vars + 1` 的 1-based 向量：第 0 位不用，元素为 `0`、`1` 或 `-1`；`-1` 由 SPB 随机补全。其随机数和计时器为进程级状态，禁止在同一进程并发运行多个 SPB 实例。
+调试阶段从 `/data/dataset/Maxsat/Complete/MSE23W` 均匀抽取 50 个实例。若候选无法被任一求解器正确解析，记录原因、跳过并从剩余文件补抽，直到有 50 个可运行实例。调试批次一旦发生崩溃、解析错误、非法界值或日志不一致，立即停止，修复后从头重跑。
 
-## Gate 0：当前解析器阻塞
+调试通过后先生成报告，再由用户检查；确认后扩展到 `MSE23W` 与 `MSE24W` 的全部加权实例。正式核心配置是原始 CASH、独立 SPB、CASH+SPB 混合；另加入“无推理初始化”消融，其 SPB 每轮全部随机初始化。不要增加“重置 SPB 自适应子句权重”的消融。
 
-当前 SPB 的 `src/BasicStruct/instance.cpp` 不能直接用于标准公共 WCNF：
+## 实现与日志规则
 
-1. `build_instance()` 在读取 `p wcnf <nvars> <nclauses> <top>` 前就分配内存，依赖非标准注释字段。
-2. `h ... 0` 硬子句被赋予 `LLONG_MAX`，而后续又用 `weight == top_clause_weight` 判断硬子句，语义不一致。
-3. 在同一仓库样例上，CASH 证明最优值为 1611，而 SPB 命令行报告 `bestcost 0`。
+新代码放在 `HybridMaxSAT/`：协同调度、CASH 最小接口封装、SPB 库驱动、解析/实验脚本、配置和日志都位于此目录。尽量保持两个原始求解器目录独立。
 
-在修复与验证前，SPB 的成本和模型都不得作为实验结果或共享 UB。修复必须先读取、校验头部再分配内存；数值权重为 `top` 的子句和 `h` 子句均须正确归为硬子句，并保留原始软权重。修改只限输入解析和语义验证，不得改变局部搜索策略。
+修复混合流程前，必须先修复 SPB 的标准 WCNF 解析：先读取 `p wcnf` 头再分配存储，并正确处理数值 `top` 和 `h` 硬子句。用 CASH 已知结果交叉检查其目标值与硬/软子句处理。该 Parser Gate 未通过时，不得启动数据集实验。
 
-## 正确性契约
+每一轮日志至少记录：轮次、CASH 累计时间、导出的推理变量数量、调用 SPB 前的 CASH UB、SPB 本轮最佳 UB 和 CASH 接收后的 UB。每次运行还要记录实例、配置、种子、最终 LB/UB、是否由 CASH 证明最优、端到端耗时、退出状态和错误信息。
 
-1. 每个候选模型先检查长度、变量取值、全部硬子句，再按原始软权重独立重算代价。
-2. `IncumbentStore` 仅接受严格改善的、已验证候选；保存模型、成本、来源、种子与时间戳。
-3. CASH 是唯一可维护 LB、处理 UNSAT 核、更新精确约束和宣布最优的组件。
-4. 到达资源限制只能返回 `UnknownWithinBudget` 和最后的经验证 UB；SPB 不能单独宣布最优。
-5. 解析、超时、取消或验证异常发生时，拒绝本次交互并保留上一次已验证状态。
-
-## 分级实施范围
-
-| 层级 | 内容 | 进入条件 |
-|---|---|---|
-| L0 | SPB 产生模型，独立验证后记录初始 UB；CASH 独立运行 | Parser Gate 通过 |
-| L1 | 串行时间片：SPB 候选验证后，在 CASH 的合法重启边界应用已验证边界 | L0 正确，`-goal` 语义已在小实例测试 |
-| L2 | 精确侧将已证明的原变量部分赋值投影给 SPB `improve()`；未定变量写为 `-1` | 精确侧适配器能给出可审计的来源与变量映射 |
-| L3 | 用经验证 UB 改善、精确种子效果和剩余预算选择下一时间片 | L1、L2 分别完成消融 |
-
-在最小化违规软权重的 WCNF 定义下，局部搜索的可行模型给出 UB；若以最大化满足软权重叙述，则它给出等价 LB，必须用 `UB = total_soft_weight - LB` 转回统一的最小化语义。局部搜索不能证明子句必然满足。某子句或变量的“必须满足/固定”状态只能来自精确侧的可验证推理，并且传递给 SPB 时只能包含原变量，不能泄露内部松弛变量、辅助变量或未经证明的猜测。
-
-当前 CASH 没有经验证的运行中 UB 注入、暂停恢复或逐步部分赋值 API，因此第一版不实现并行在线双向通信，也不声称使用核心统计调度。Exact-to-LS 方向必须先新增、测试适配器，再进入实验矩阵。
-
-## 数据、日志与结果
-
-公共数据只读使用。初期仅使用带传统 `p wcnf` 头和数值 `top` 的实例；`.wcnf.gz` 先解压到本次运行目录，不修改 `/data`。`h` 子句或无传统头的扩展格式，只有在单独测试支持后才纳入。
-
-推荐目录：
-
-```text
-HybridAlgorithm/
-  build/  configs/  manifests/  src/hybrid/  tests/
-  work/instances/
-  runs/<run-id>/{command.txt,stdout.log,stderr.log,model.txt,events.jsonl,result.json}
-```
-
-每次运行记录实例原路径和哈希、解析器版本、两个源码哈希、命令、配置、种子、CPU/墙钟/内存限制、候选验证结果、CASH 状态、经验证 UB 和失败原因。比较至少包括 CASH、SPB、L0、L1、L2；按实例族报告完成数、证明最优数、经验证 UB、时间与内存，保留失败实例，不得只报最好结果。
