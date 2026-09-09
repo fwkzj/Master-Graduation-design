@@ -1,0 +1,916 @@
+#include "BasicStruct/instance.h"
+
+Instance::Instance()
+{
+    // Initialize pointers to null
+    var_lit = nullptr;
+    var_lit_count = nullptr;
+    clause_lit = nullptr;
+    clause_lit_count = nullptr;
+    unit_clause = nullptr;
+    unit_soft_clause = nullptr;
+    org_clause_weight = nullptr;
+    var_neighbor = nullptr;
+    var_neighbor_count = nullptr;
+    soft_clause_num_index = nullptr;
+    temp_lit = nullptr;
+
+    // Initialize counts and properties
+    num_vars = 0;
+    num_clauses = 0;
+    num_hclauses = 0;
+    num_sclauses = 0;
+    problem_weighted = 0;
+    top_clause_weight = 0;
+    total_soft_weight = 0;
+    total_hard_length = 0;
+    total_soft_length = 0;
+    unit_clause_count = 0;
+    unit_soft_clause_count = 0;
+}
+
+Instance::~Instance()
+{
+    free_memory();
+}
+
+// Deep copy constructor
+Instance::Instance(const Instance &other)
+{
+    // Copy scalar fields
+    problem_weighted   = other.problem_weighted;
+    num_vars           = other.num_vars;
+    num_clauses        = other.num_clauses;
+    num_hclauses       = other.num_hclauses;
+    num_sclauses       = other.num_sclauses;
+    top_clause_weight  = other.top_clause_weight;
+    total_soft_weight  = other.total_soft_weight;
+    total_hard_length  = other.total_hard_length;
+    total_soft_length  = other.total_soft_length;
+    unit_clause_count  = other.unit_clause_count;
+    unit_soft_clause_count = other.unit_soft_clause_count;
+
+    // Allocate top-level arrays based on num_vars/num_clauses
+    allocate_memory();
+
+    // Copy clause-related structures
+    for (int c = 0; c < num_clauses; ++c)
+    {
+        clause_lit_count[c] = other.clause_lit_count[c];
+
+        if (clause_lit_count[c] > 0 && other.clause_lit[c] != nullptr)
+        {
+            clause_lit[c] = new lit[clause_lit_count[c] + 1];
+            for (int i = 0; i <= clause_lit_count[c]; ++i)
+            {
+                clause_lit[c][i] = other.clause_lit[c][i];
+            }
+        }
+        else
+        {
+            clause_lit[c] = nullptr;
+        }
+
+        org_clause_weight[c] = other.org_clause_weight[c];
+    }
+
+    // Copy unit clauses
+    for (int i = 0; i < unit_clause_count; ++i)
+    {
+        unit_clause[i] = other.unit_clause[i];
+    }
+
+    // Copy unit soft clauses
+    for (int i = 0; i < unit_soft_clause_count; ++i)
+    {
+        unit_soft_clause[i] = other.unit_soft_clause[i];
+    }
+    // Copy soft clause indices
+    for (int i = 0; i < num_sclauses; ++i)
+    {
+        soft_clause_num_index[i] = other.soft_clause_num_index[i];
+    }
+
+    // Copy variable literal arrays
+    for (int v = 1; v <= num_vars; ++v)
+    {
+        var_lit_count[v] = other.var_lit_count[v];
+        if (var_lit_count[v] > 0 && other.var_lit[v] != nullptr)
+        {
+            var_lit[v] = new lit[var_lit_count[v] + 1];
+            for (int i = 0; i <= var_lit_count[v]; ++i)
+            {
+                var_lit[v][i] = other.var_lit[v][i];
+            }
+        }
+        else
+        {
+            var_lit[v] = nullptr;
+        }
+    }
+
+    // Copy neighbor information if available
+    for (int v = 1; v <= num_vars; ++v)
+    {
+        var_neighbor_count[v] = other.var_neighbor_count[v];
+        if (var_neighbor_count[v] > 0 && other.var_neighbor[v] != nullptr)
+        {
+            var_neighbor[v] = new int[var_neighbor_count[v]];
+            for (int i = 0; i < var_neighbor_count[v]; ++i)
+            {
+                var_neighbor[v][i] = other.var_neighbor[v][i];
+            }
+        }
+        else
+        {
+            var_neighbor[v] = nullptr;
+        }
+    }
+
+    // temp_lit is only used as scratch space; no need to copy contents.
+}
+
+// Deep copy assignment
+Instance &Instance::operator=(const Instance &other)
+{
+    if (this != &other)
+    {
+        // Release existing resources
+        free_memory();
+
+        // Copy scalar fields
+        problem_weighted   = other.problem_weighted;
+        num_vars           = other.num_vars;
+        num_clauses        = other.num_clauses;
+        num_hclauses       = other.num_hclauses;
+        num_sclauses       = other.num_sclauses;
+        top_clause_weight  = other.top_clause_weight;
+        total_soft_weight  = other.total_soft_weight;
+        total_hard_length  = other.total_hard_length;
+        total_soft_length  = other.total_soft_length;
+        unit_clause_count  = other.unit_clause_count;
+        unit_soft_clause_count = other.unit_soft_clause_count;
+
+        // Allocate top-level arrays based on new sizes
+        allocate_memory();
+
+        // Copy clause-related structures
+        for (int c = 0; c < num_clauses; ++c)
+        {
+            clause_lit_count[c] = other.clause_lit_count[c];
+
+            if (clause_lit_count[c] > 0 && other.clause_lit[c] != nullptr)
+            {
+                clause_lit[c] = new lit[clause_lit_count[c] + 1];
+                for (int i = 0; i <= clause_lit_count[c]; ++i)
+                {
+                    clause_lit[c][i] = other.clause_lit[c][i];
+                }
+            }
+            else
+            {
+                clause_lit[c] = nullptr;
+            }
+
+            org_clause_weight[c] = other.org_clause_weight[c];
+        }
+
+        // Copy unit clauses
+        for (int i = 0; i < unit_clause_count; ++i)
+        {
+            unit_clause[i] = other.unit_clause[i];
+        }
+
+        // Copy unit soft clauses
+        for (int i = 0; i < unit_soft_clause_count; ++i)
+        {
+            unit_soft_clause[i] = other.unit_soft_clause[i];
+        }
+        // Copy soft clause indices
+        for (int i = 0; i < num_sclauses; ++i)
+        {
+            soft_clause_num_index[i] = other.soft_clause_num_index[i];
+        }
+
+        // Copy variable literal arrays
+        for (int v = 1; v <= num_vars; ++v)
+        {
+            var_lit_count[v] = other.var_lit_count[v];
+            if (var_lit_count[v] > 0 && other.var_lit[v] != nullptr)
+            {
+                var_lit[v] = new lit[var_lit_count[v] + 1];
+                for (int i = 0; i <= var_lit_count[v]; ++i)
+                {
+                    var_lit[v][i] = other.var_lit[v][i];
+                }
+            }
+            else
+            {
+                var_lit[v] = nullptr;
+            }
+        }
+
+        // Copy neighbor information if available
+        for (int v = 1; v <= num_vars; ++v)
+        {
+            var_neighbor_count[v] = other.var_neighbor_count[v];
+            if (var_neighbor_count[v] > 0 && other.var_neighbor[v] != nullptr)
+            {
+                var_neighbor[v] = new int[var_neighbor_count[v]];
+                for (int i = 0; i < var_neighbor_count[v]; ++i)
+                {
+                    var_neighbor[v][i] = other.var_neighbor[v][i];
+                }
+            }
+            else
+            {
+                var_neighbor[v] = nullptr;
+            }
+        }
+        // temp_lit remains scratch space
+    }
+    return *this;
+}
+
+Instance::Instance(Instance&& other) noexcept {
+    // Steal the data from other
+    var_lit = other.var_lit;
+    var_lit_count = other.var_lit_count;
+    clause_lit = other.clause_lit;
+    clause_lit_count = other.clause_lit_count;
+    unit_clause = other.unit_clause;
+    unit_soft_clause = other.unit_soft_clause;
+    org_clause_weight = other.org_clause_weight;
+    var_neighbor = other.var_neighbor;
+    var_neighbor_count = other.var_neighbor_count;
+    soft_clause_num_index = other.soft_clause_num_index;
+    temp_lit = other.temp_lit;
+
+    num_vars = other.num_vars;
+    num_clauses = other.num_clauses;
+    num_hclauses = other.num_hclauses;
+    num_sclauses = other.num_sclauses;
+    problem_weighted = other.problem_weighted;
+    top_clause_weight = other.top_clause_weight;
+    total_soft_weight = other.total_soft_weight;
+    total_hard_length = other.total_hard_length;
+    total_soft_length = other.total_soft_length;
+    unit_clause_count = other.unit_clause_count;
+    unit_soft_clause_count = other.unit_soft_clause_count;
+    // Reset other to a valid, destructible state
+    other.var_lit = nullptr;
+    other.var_lit_count = nullptr;
+    other.clause_lit = nullptr;
+    other.clause_lit_count = nullptr;
+    other.unit_clause = nullptr;
+    other.unit_soft_clause = nullptr;
+    other.org_clause_weight = nullptr;
+    other.var_neighbor = nullptr;
+    other.var_neighbor_count = nullptr;
+    other.soft_clause_num_index = nullptr;
+    other.temp_lit = nullptr;
+
+    other.num_vars = 0;
+    other.num_clauses = 0;
+    other.num_hclauses = 0;
+    other.num_sclauses = 0;
+    other.problem_weighted = 0;
+    other.top_clause_weight = 0;
+    other.total_soft_weight = 0;
+    other.total_hard_length = 0;
+    other.total_soft_length = 0;
+    other.unit_clause_count = 0;
+    other.unit_soft_clause_count = 0;
+}
+
+Instance& Instance::operator=(Instance&& other) noexcept {
+    if (this != &other) {
+        // Free existing resources
+        free_memory();
+
+        // Steal the data from other
+        var_lit = other.var_lit;
+        var_lit_count = other.var_lit_count;
+        clause_lit = other.clause_lit;
+        clause_lit_count = other.clause_lit_count;
+        unit_clause = other.unit_clause;
+        unit_soft_clause = other.unit_soft_clause;
+        org_clause_weight = other.org_clause_weight;
+        var_neighbor = other.var_neighbor;
+        var_neighbor_count = other.var_neighbor_count;
+        soft_clause_num_index = other.soft_clause_num_index;
+        temp_lit = other.temp_lit;
+
+        num_vars = other.num_vars;
+        num_clauses = other.num_clauses;
+        num_hclauses = other.num_hclauses;
+        num_sclauses = other.num_sclauses;
+        problem_weighted = other.problem_weighted;
+        top_clause_weight = other.top_clause_weight;
+        total_soft_weight = other.total_soft_weight;
+        total_hard_length = other.total_hard_length;
+        total_soft_length = other.total_soft_length;
+        unit_clause_count = other.unit_clause_count;
+        unit_soft_clause_count = other.unit_soft_clause_count;
+        // Reset other to a valid, destructible state
+        other.var_lit = nullptr;
+        other.var_lit_count = nullptr;
+        other.clause_lit = nullptr;
+        other.clause_lit_count = nullptr;
+        other.unit_clause = nullptr;
+        other.unit_soft_clause = nullptr;
+        other.org_clause_weight = nullptr;
+        other.var_neighbor = nullptr;
+        other.var_neighbor_count = nullptr;
+        other.soft_clause_num_index = nullptr;
+        other.temp_lit = nullptr;
+        
+        other.num_vars = 0;
+        other.num_clauses = 0;
+        other.num_hclauses = 0;
+        other.num_sclauses = 0;
+        other.problem_weighted = 0;
+        other.top_clause_weight = 0;
+        other.total_soft_weight = 0;
+        other.total_hard_length = 0;
+        other.total_soft_length = 0;
+        other.unit_clause_count = 0;
+        other.unit_soft_clause_count = 0;
+    }
+    return *this;
+}
+
+ReducedInstance Instance::reduce(const vector<int> &assignment) const
+{
+    ReducedInstance result;
+
+    // Record which variables were fixed in the given assignment
+    // -1 means unfixed, 0/1 means fixed value.
+    result.fixed_assignment.assign(num_vars + 1, -1);
+    for (int v = 1; v <= num_vars; ++v)
+    {
+        int val = (v < (int)assignment.size()) ? assignment[v] : -1;
+        if (val != -1)
+            result.fixed_assignment[v] = val;
+    }
+
+    // Shortcut: empty instance or no clauses
+    if (num_clauses == 0 || num_vars == 0)
+    {
+        // result.reduced stays as default-constructed empty Instance
+        result.old2new.assign(num_vars + 1, 0);
+        result.new2old.assign(1, 0); // index 0 unused
+        result.base_cost = 0;
+        result.unsat = false;
+        return result;
+    }
+
+    // Temporary structures to store simplified clauses
+    struct TempClause
+    {
+        long long weight;
+        bool isHard;
+        vector<pair<int, int>> lits; // (var, sense)
+    };
+
+    vector<TempClause> tempClauses;
+    tempClauses.reserve(num_clauses);
+
+    vector<int> varUsed(num_vars + 1, 0);
+
+    auto get_value = [&](int v) -> int {
+        if (v <= 0 || v > num_vars)
+            return -1;
+        if ((size_t)v >= assignment.size())
+            return -1;
+        return assignment[v]; // expected -1, 0, or 1
+    };
+
+    result.base_cost = 0;
+    result.unsat = false;
+
+    // First pass: simplify clauses under the partial assignment
+    for (int c = 0; c < num_clauses; ++c)
+    {
+        long long weight = org_clause_weight[c];
+        bool isHard = (weight == top_clause_weight);
+
+        bool clauseSatisfied = false;
+        vector<pair<int, int>> newLits;
+        newLits.reserve(clause_lit_count[c]);
+
+        for (int i = 0; i < clause_lit_count[c]; ++i)
+        {
+            int v = clause_lit[c][i].var_num;
+            int sense = clause_lit[c][i].sense; // 1 for positive, 0 for negative
+
+            int val = get_value(v); // -1, 0, or 1
+
+            if (val == -1)
+            {
+                // Unassigned literal stays in the reduced clause
+                newLits.emplace_back(v, sense);
+                varUsed[v] = 1;
+            }
+            else
+            {
+                bool litTrue = (val == sense);
+                if (litTrue)
+                {
+                    // Clause is satisfied, can be removed entirely
+                    clauseSatisfied = true;
+                    break;
+                }
+                // otherwise this literal is false and dropped
+            }
+        }
+
+        if (clauseSatisfied)
+        {
+            // Satisfied clause contributes no further cost in reduced problem
+            continue;
+        }
+
+        if (newLits.empty())
+        {
+            // Clause becomes empty: all literals are false under current assignment
+            if (isHard)
+            {
+                // Hard clause conflict => whole instance UNSAT under this partial assignment
+                result.unsat = true;
+                // No need to build a reduced instance; return early.
+                result.old2new.assign(num_vars + 1, 0);
+                result.new2old.assign(1, 0);
+                return result;
+            }
+            else
+            {
+                // Soft clause is forced unsatisfied; add its weight to base_cost
+                result.base_cost += weight;
+            }
+            continue;
+        }
+
+        // Non-empty simplified clause goes into the reduced instance
+        TempClause tc;
+        tc.weight = weight;
+        tc.isHard = isHard;
+        tc.lits.swap(newLits);
+        tempClauses.push_back(std::move(tc));
+    }
+
+    // Build variable mapping old -> new (only variables that still appear and are unassigned)
+    result.old2new.assign(num_vars + 1, 0);
+    result.new2old.clear();
+    result.new2old.push_back(0); // index 0 unused to keep 1-based vars
+
+    int newVarCount = 0;
+    for (int v = 1; v <= num_vars; ++v)
+    {
+        int val = (v < (int)assignment.size()) ? assignment[v] : -1;
+        if (val == -1 && varUsed[v])
+        {
+            ++newVarCount;
+            result.old2new[v] = newVarCount;
+            result.new2old.push_back(v);
+        }
+        if (val == -1 && !varUsed[v])
+        {
+            result.fixed_assignment[v] = 0;
+        }
+    }
+
+    // If no clauses remain, the reduced instance is trivially satisfied
+    if (tempClauses.empty())
+    {
+        // Keep reduced as an empty instance; mappings/base_cost already set
+        return result;
+    }
+
+    // Second pass: actually construct the reduced Instance
+    Instance reducedInst;
+
+    reducedInst.problem_weighted = problem_weighted;
+    reducedInst.num_vars = newVarCount;
+    reducedInst.num_clauses = (int)tempClauses.size();
+    reducedInst.num_hclauses = 0;
+    reducedInst.num_sclauses = 0;
+    reducedInst.top_clause_weight = top_clause_weight;
+    reducedInst.total_soft_weight = 0;
+    reducedInst.total_hard_length = 0;
+    reducedInst.total_soft_length = 0;
+    reducedInst.unit_clause_count = 0;
+    reducedInst.unit_soft_clause_count = 0;
+    // Allocate internal arrays based on new sizes
+    reducedInst.allocate_memory();
+
+    // Initialize pointer arrays similarly to build_instance
+    for (int c = 0; c < reducedInst.num_clauses; ++c)
+    {
+        reducedInst.clause_lit_count[c] = 0;
+        reducedInst.clause_lit[c] = nullptr;
+    }
+    for (int v = 1; v <= reducedInst.num_vars; ++v)
+    {
+        reducedInst.var_lit_count[v] = 0;
+        reducedInst.var_lit[v] = nullptr;
+        reducedInst.var_neighbor[v] = nullptr;
+        reducedInst.var_neighbor_count[v] = 0;
+    }
+
+    int softIndex = 0;
+
+    // First, allocate clause_lit arrays and accumulate var_lit counts
+    for (int c = 0; c < reducedInst.num_clauses; ++c)
+    {
+        const TempClause &tc = tempClauses[c];
+        int len = (int)tc.lits.size();
+
+        reducedInst.clause_lit_count[c] = len;
+        reducedInst.clause_lit[c] = new lit[len + 1];
+        reducedInst.org_clause_weight[c] = tc.weight;
+
+        for (int i = 0; i < len; ++i)
+        {
+            int oldV = tc.lits[i].first;
+            int sense = tc.lits[i].second;
+            int newV = result.old2new[oldV];
+
+            reducedInst.clause_lit[c][i].clause_num = c;
+            reducedInst.clause_lit[c][i].var_num = newV;
+            reducedInst.clause_lit[c][i].sense = sense;
+
+            reducedInst.var_lit_count[newV]++;
+        }
+        // sentinel
+        reducedInst.clause_lit[c][len].var_num = 0;
+        reducedInst.clause_lit[c][len].clause_num = -1;
+
+        if (len == 1)
+        {
+            reducedInst.unit_clause[reducedInst.unit_clause_count++] = reducedInst.clause_lit[c][0];
+            if (!tc.isHard)
+            {
+                reducedInst.unit_soft_clause[reducedInst.unit_soft_clause_count++] = reducedInst.clause_lit[c][0];
+            }
+        }
+
+        if (tc.isHard)
+        {
+            reducedInst.num_hclauses++;
+            reducedInst.total_hard_length += len;
+        }
+        else
+        {
+            reducedInst.num_sclauses++;
+            reducedInst.total_soft_length += len;
+            reducedInst.total_soft_weight += tc.weight;
+            reducedInst.soft_clause_num_index[softIndex++] = c;
+        }
+    }
+
+    // Build var_lit arrays from clause_lit
+    for (int v = 1; v <= reducedInst.num_vars; ++v)
+    {
+        reducedInst.var_lit[v] = new lit[reducedInst.var_lit_count[v] + 1];
+        reducedInst.var_lit_count[v] = 0; // reset as write pointer
+    }
+
+    for (int c = 0; c < reducedInst.num_clauses; ++c)
+    {
+        for (int i = 0; i < reducedInst.clause_lit_count[c]; ++i)
+        {
+            int v = reducedInst.clause_lit[c][i].var_num;
+            int idx = reducedInst.var_lit_count[v]++;
+            reducedInst.var_lit[v][idx] = reducedInst.clause_lit[c][i];
+        }
+    }
+
+    for (int v = 1; v <= reducedInst.num_vars; ++v)
+    {
+        reducedInst.var_lit[v][reducedInst.var_lit_count[v]].clause_num = -1;
+    }
+
+    result.reduced = std::move(reducedInst);
+    return result;
+}
+
+void Instance::build_instance(const char *filename)
+{
+    total_soft_length = 0;
+    total_hard_length = 0;
+    
+    istringstream iss;
+    string line;
+    char tempstr1[10];
+    char tempstr2[10];
+
+    ifstream infile(filename);
+    if (!infile)
+    {
+        cout << "c the input filename " << filename << " is invalid, please input the correct filename." << endl;
+        exit(-1);
+    }
+
+    /*** build problem data structures of the instance ***/
+    while (getline(infile, line))
+    {
+        if (line.length() > 7 && line[3] == 'n' && line[4] == 'v' && line[5] == 'a' && line[6] == 'r' && line[7] == 's')
+        {
+            int items = sscanf(line.c_str(), "%s %s %d", tempstr1, tempstr2, &num_vars);
+        }
+        
+        if (line.length() > 6 && line[3] == 'n' && line[4] == 'c' && line[5] == 'l' && line[6] == 's')
+        {
+            int items = sscanf(line.c_str(), "%s %s %d", tempstr1, tempstr2, &num_clauses);
+            break;
+        }
+    }
+
+    allocate_memory();
+
+    int v, c;
+    for (c = 0; c < num_clauses; c++)
+    {
+        clause_lit_count[c] = 0;
+        clause_lit[c] = NULL;
+    }
+    for (v = 1; v <= num_vars; ++v)
+    {
+        var_lit_count[v] = 0;
+        var_lit[v] = NULL;
+        var_neighbor[v] = NULL;
+    }
+
+    int cur_lit;
+    c = 0;
+    problem_weighted = 0;
+    num_hclauses = num_sclauses = 0;
+    unit_clause_count = 0;
+    unit_soft_clause_count = 0;
+    int *redunt_test = new int[num_vars + 1];
+    memset(redunt_test, 0, sizeof(int) * (num_vars + 1));
+    
+    top_clause_weight = numeric_limits<long long>::max();
+    total_soft_weight = 0;
+    while (getline(infile, line))
+    {
+        if (line[0] == 'c')
+            continue;
+        else if (line[0] == 'p')
+        {
+            int read_items;
+            num_vars = num_clauses = 0;
+            read_items = sscanf(line.c_str(), "%s %s %d %d %lld", tempstr1, tempstr2, &num_vars, &num_clauses, &top_clause_weight);
+
+            if (read_items < 5)
+            {
+                cout << "read item < 5 " << endl;
+                exit(-1);
+            }
+            iss.clear();
+            iss.str(line);
+            iss.seekg(0, ios::beg);
+            continue;
+        }
+        else
+        {
+            iss.clear();
+            iss.str(line);
+            iss.seekg(0, ios::beg);
+        }
+        clause_lit_count[c] = 0;
+
+        if (line[0] == 'h')
+        {
+            iss >> tempstr1;
+            org_clause_weight[c] = numeric_limits<long long>::max();
+        }
+        else
+            iss >> org_clause_weight[c];
+        if (org_clause_weight[c] != top_clause_weight)
+        {
+            if (org_clause_weight[c] != 1)
+                problem_weighted = 1;
+            total_soft_weight += org_clause_weight[c];
+            soft_clause_num_index[num_sclauses++] = c;
+        }
+        else
+        {
+            num_hclauses++;
+        }
+
+        iss >> cur_lit;
+        int clause_reduent = 0;
+        while (cur_lit != 0)
+        {
+            if (redunt_test[abs(cur_lit)] == 0)
+            {
+                temp_lit[clause_lit_count[c]] = cur_lit;
+                clause_lit_count[c]++;
+                redunt_test[abs(cur_lit)] = cur_lit;
+            }
+            else if (redunt_test[abs(cur_lit)] != cur_lit)
+            {
+                clause_reduent = 1;
+                break;
+            }
+            iss >> cur_lit;
+        }
+        if (clause_reduent == 1)
+        {
+            for (int i = 0; i < clause_lit_count[c]; ++i)
+                redunt_test[abs(temp_lit[i])] = 0;
+
+            num_clauses--;
+            clause_lit_count[c] = 0;
+            continue;
+        }
+
+        clause_lit[c] = new lit[clause_lit_count[c] + 1];
+
+        int i;
+        for (i = 0; i < clause_lit_count[c]; ++i)
+        {
+            clause_lit[c][i].clause_num = c;
+            v = abs(temp_lit[i]);
+            clause_lit[c][i].var_num = v;
+            redunt_test[v] = 0;
+            if (temp_lit[i] > 0)
+                clause_lit[c][i].sense = 1;
+            else
+                clause_lit[c][i].sense = 0;
+
+            var_lit_count[v]++;
+        }
+        clause_lit[c][i].var_num = 0;
+        clause_lit[c][i].clause_num = -1;
+
+        if (clause_lit_count[c] == 1){
+            unit_clause[unit_clause_count++] = clause_lit[c][0];
+            if (org_clause_weight[c] != top_clause_weight){
+                unit_soft_clause[unit_soft_clause_count++] = clause_lit[c][0];
+            }
+        }
+
+        if (top_clause_weight == org_clause_weight[c])
+        {
+            total_hard_length += clause_lit_count[c];
+        }
+        else
+        {
+            total_soft_length += clause_lit_count[c];
+        }
+        c++;
+    }
+    delete[] redunt_test;
+    infile.close();
+
+    // creat var literal arrays
+    for (v = 1; v <= num_vars; ++v)
+    {
+        var_lit[v] = new lit[var_lit_count[v] + 1];
+        var_lit_count[v] = 0; // reset to 0, for build up the array
+    }
+    // scan all clauses to build up var literal arrays
+    for (c = 0; c < num_clauses; ++c)
+    {
+        for (int i = 0; i < clause_lit_count[c]; ++i)
+        {
+            v = clause_lit[c][i].var_num;
+            var_lit[v][var_lit_count[v]] = clause_lit[c][i];
+            ++var_lit_count[v];
+        }
+    }
+    for (v = 1; v <= num_vars; ++v)
+        var_lit[v][var_lit_count[v]].clause_num = -1;
+}
+
+void Instance::allocate_memory()
+{
+    int malloc_var_length = num_vars + 10;
+    int malloc_clause_length = num_clauses + 10;
+
+    unit_clause = new lit[malloc_clause_length];
+    unit_soft_clause = new lit[malloc_clause_length];
+    var_lit = new lit *[malloc_var_length];
+    var_lit_count = new int[malloc_var_length];
+    clause_lit = new lit *[malloc_clause_length];
+    clause_lit_count = new int[malloc_clause_length];
+
+    var_neighbor = new int *[malloc_var_length];
+    var_neighbor_count = new int[malloc_var_length];
+
+    org_clause_weight = new long long[malloc_clause_length];
+    
+    temp_lit = new int[malloc_var_length];
+
+    soft_clause_num_index = new int[malloc_clause_length];
+}
+
+void Instance::free_memory()
+{
+    if (clause_lit != nullptr) {
+        for (int i = 0; i < num_clauses; i++)
+            delete[] clause_lit[i];
+    }
+
+    if (var_lit != nullptr) {
+        for (int i = 1; i <= num_vars; ++i)
+        {
+            delete[] var_lit[i];
+        }
+    }
+    
+    if (var_neighbor != nullptr) {
+        for (int i = 1; i <= num_vars; ++i)
+        {
+            delete[] var_neighbor[i];
+        }
+    }
+
+    delete[] var_lit;
+    delete[] var_lit_count;
+    delete[] clause_lit;
+    delete[] clause_lit_count;
+
+    delete[] var_neighbor;
+    delete[] var_neighbor_count;
+
+    delete[] org_clause_weight;
+    
+    delete[] temp_lit;
+
+    delete[] soft_clause_num_index;
+    
+    delete[] unit_clause;
+    delete[] unit_soft_clause;
+}
+
+void Instance::print_info()
+{
+    cout << "c Instance Information:" << endl;
+    cout << "c Number of variables: " << num_vars << endl;
+    cout << "c Number of clauses: " << num_clauses << endl;
+    cout << "c Number of hard clauses: " << num_hclauses << endl;
+    cout << "c Number of soft clauses: " << num_sclauses << endl;
+    cout << "c Problem weighted: " << problem_weighted << endl;
+    cout << "c Top clause weight: " << top_clause_weight << endl;
+    cout << "c Total soft weight: " << total_soft_weight << endl;
+    cout << "c Total hard length: " << total_hard_length << endl;
+    cout << "c Total soft length: " << total_soft_length << endl;
+    cout << "c Unit clause count: " << unit_clause_count << endl;
+    double unit_soft_ratio = (num_sclauses == 0) ? 0.0 : ((double)unit_soft_clause_count / (double)num_sclauses);
+    cout << "c Unit soft clause count: " << unit_soft_clause_count << " (" << unit_soft_ratio * 100.0 << "%)" << endl;
+    // print first few clauses (constraints) 
+}
+
+long long Instance::verify_solution(const vector<int> &assignment) const
+{
+    long long total_cost = 0;
+
+    if(assignment.size() < (size_t)num_vars + 1) {
+        cout << "c Warning: assignment size " << assignment.size() << " is not sufficient for " << num_vars << " variables." << endl;
+        return -1; // Indicate error
+    }
+
+    for(int i = 1; i <= num_vars; ++i) {
+        if(assignment[i] != 0 && assignment[i] != 1) {
+            cout << "c Warning: variable " << i << " has invalid assignment value " << assignment[i] << "." << endl;
+            return -1; // Indicate error
+        }
+    }
+
+    for (int c = 0; c < num_clauses; ++c)
+    {
+        bool clause_satisfied = false;
+        for (int i = 0; i < clause_lit_count[c]; ++i)
+        {
+            int v = clause_lit[c][i].var_num;
+            int sense = clause_lit[c][i].sense; // 1 for true, 0 for false
+
+            if (v >= (int)assignment.size()){
+                cout << "c Warning: clause " << c << " references variable " << v << " which is out of bounds in the assignment." << endl;
+                return -1; // Indicate error
+            }
+
+            int val = assignment[v]; // expected 0 or 1
+
+            if (val == sense)
+            {
+                clause_satisfied = true;
+                break;
+            }
+        }
+        if (!clause_satisfied)
+        {
+            if(org_clause_weight[c] == top_clause_weight) {
+                return -1; // Hard clause unsatisfied
+            } else {
+                total_cost += org_clause_weight[c];
+            }
+        }
+    }
+
+    return total_cost;
+}
