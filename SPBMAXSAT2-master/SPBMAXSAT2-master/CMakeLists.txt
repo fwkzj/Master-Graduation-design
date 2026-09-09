@@ -41,4 +41,11 @@ if(BUILD_TESTING)
         NAME instance_parser_standard_wcnf
         COMMAND instance_parser_test ${CMAKE_CURRENT_BINARY_DIR}
     )
+
+    add_executable(persistent_interface_test tests/persistent_interface_test.cpp)
+    target_link_libraries(persistent_interface_test PRIVATE spbmaxsat)
+    add_test(
+        NAME persistent_local_search_interface
+        COMMAND persistent_interface_test ${CMAKE_CURRENT_BINARY_DIR}
+    )
 endif()

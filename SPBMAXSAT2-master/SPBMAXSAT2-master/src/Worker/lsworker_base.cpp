@@ -117,7 +117,8 @@ void LSworker::settings(){
             rwprob = 0.48;
             h_inc = 28;
             soft_increase_ratio = 1.001;
-            avg_soft_weight =  double(inst.total_soft_weight) / inst.num_sclauses;
+            avg_soft_weight = inst.num_sclauses == 0 ? 1.0 :
+                double(inst.total_soft_weight - inst.fixed_soft_cost) / inst.num_sclauses;
             for (int i = 0; i < inst.num_sclauses; ++i)
             {
                 int c = inst.soft_clause_num_index[i];
@@ -187,11 +188,13 @@ void LSworker::push_best_solution_to_solver(){
     if(best_soln_feasible == 0)return;
     if(reduceInst != nullptr){
         vector<int> best_soln_vec = reduceInst->expand_solution(vector<int>(best_soln, best_soln + inst.num_vars + 1));
-        solver->UpdateBestSolution(best_soln_vec, opt_unsat_weight + reduceInst->base_cost);
-        solver->solpool.PushSolutionByCost(Solution(best_soln_vec, opt_unsat_weight + reduceInst->base_cost, best_soln_feasible ));
+        const long long cost = opt_unsat_weight + inst.fixed_soft_cost + reduceInst->base_cost;
+        solver->UpdateBestSolution(best_soln_vec, cost);
+        solver->solpool.PushSolutionByCost(Solution(best_soln_vec, cost, best_soln_feasible ));
     } else {
         vector<int> best_soln_vec = vector<int>(best_soln, best_soln + inst.num_vars + 1);
-        solver->UpdateBestSolution(best_soln_vec, opt_unsat_weight);
-        solver->solpool.PushSolutionByCost(Solution(best_soln_vec, opt_unsat_weight, best_soln_feasible ));
+        const long long cost = opt_unsat_weight + inst.fixed_soft_cost;
+        solver->UpdateBestSolution(best_soln_vec, cost);
+        solver->solpool.PushSolutionByCost(Solution(best_soln_vec, cost, best_soln_feasible ));
     }
 }

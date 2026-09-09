@@ -38,7 +38,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 find_library(GMP_LIBRARY gmp)
 #include_directories(${GMP_INCLUDE_DIR})
-find_library(MINISAT_LIB_STATIC _release PATH ${minisat_SOURCE_DIR}/simp)
 
 include_directories(${minisat_SOURCE_DIR})
 include_directories(${minisatp_SOURCE_DIR})
@@ -54,14 +53,16 @@ set(MINISATP_LIB_SOURCES
     Debug.cc
     Hardware_adders.cc
     Hardware_clausify.cc
+    Hardware_reuse_sorters.cc
     Hardware_sorters.cc
-    Main.cc
+    Main_utils.cc
     PbParser.cc
     PbSolver.cc
     PbSolver_convert.cc
     PbSolver_convertAdd.cc
     PbSolver_convertBdd.cc
     PbSolver_convertSort.cc
+    Pre_separator.cc
     MsSolver.cc
     SatSolver.cc
     System.cc)
@@ -70,7 +71,7 @@ add_library(minisatp-lib-static STATIC ${MINISATP_LIB_SOURCES})
 add_library(minisatp-lib-shared SHARED ${MINISATP_LIB_SOURCES})
 
 target_link_libraries(minisatp-lib-shared minisat-lib-shared ${GMP_LIBRARY})
-target_link_libraries(minisatp-lib-static ${MINISAT_LIB_STATIC} ${GMP_LIBRARY})
+target_link_libraries(minisatp-lib-static minisat-lib-static ${GMP_LIBRARY})
 
 set_target_properties(minisatp-lib-static PROPERTIES OUTPUT_NAME "uwrmaxsat")
 set_target_properties(minisatp-lib-shared 

@@ -133,15 +133,21 @@ Solution LSworker::local_search_with_decimation(){
     return best_solution;
 }
 
-void LSworker::local_search_with_init_solution(vector<int> &init_solution,int basic_cost){
+void LSworker::local_search_with_init_solution(vector<int> &init_solution,
+    int basic_cost, bool preserve_clause_weights){
     // 记录本次 reduced 实例局部搜索的起始时间
     double ls_start_time = util::global_elapsed_seconds();
     assert(init_solution.size() >= inst.num_vars + 1);
     total_step = 0;
     opt_unsat_weight = __LONG_LONG_MAX__;
+    // Each coordinator window starts from a new assignment and has an
+    // independent incumbent.  Clause weights are the sole state optionally
+    // retained across windows.
+    best_soln_feasible = 0;
+    local_soln_feasible = 0;
     for (tries = 1; tries < max_tries; ++tries)
     {
-        init(init_solution);
+        init(init_solution, preserve_clause_weights);
         long long local_opt = __LONG_LONG_MAX__;
         max_flips = max_non_improve_flip;
         for (step = 1; step < max_flips; ++step)

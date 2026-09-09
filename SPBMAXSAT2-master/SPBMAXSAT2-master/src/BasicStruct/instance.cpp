@@ -1,5 +1,7 @@
 #include "BasicStruct/instance.h"
 
+#include <stdexcept>
+
 Instance::Instance()
 {
     // Initialize pointers to null
@@ -25,6 +27,8 @@ Instance::Instance()
     total_soft_weight = 0;
     total_hard_length = 0;
     total_soft_length = 0;
+    fixed_soft_cost = 0;
+    has_empty_hard_clause = false;
     unit_clause_count = 0;
     unit_soft_clause_count = 0;
 }
@@ -47,6 +51,8 @@ Instance::Instance(const Instance &other)
     total_soft_weight  = other.total_soft_weight;
     total_hard_length  = other.total_hard_length;
     total_soft_length  = other.total_soft_length;
+    fixed_soft_cost    = other.fixed_soft_cost;
+    has_empty_hard_clause = other.has_empty_hard_clause;
     unit_clause_count  = other.unit_clause_count;
     unit_soft_clause_count = other.unit_soft_clause_count;
 
@@ -148,6 +154,8 @@ Instance &Instance::operator=(const Instance &other)
         total_soft_weight  = other.total_soft_weight;
         total_hard_length  = other.total_hard_length;
         total_soft_length  = other.total_soft_length;
+        fixed_soft_cost    = other.fixed_soft_cost;
+        has_empty_hard_clause = other.has_empty_hard_clause;
         unit_clause_count  = other.unit_clause_count;
         unit_soft_clause_count = other.unit_soft_clause_count;
 
@@ -255,6 +263,8 @@ Instance::Instance(Instance&& other) noexcept {
     total_soft_weight = other.total_soft_weight;
     total_hard_length = other.total_hard_length;
     total_soft_length = other.total_soft_length;
+    fixed_soft_cost = other.fixed_soft_cost;
+    has_empty_hard_clause = other.has_empty_hard_clause;
     unit_clause_count = other.unit_clause_count;
     unit_soft_clause_count = other.unit_soft_clause_count;
     // Reset other to a valid, destructible state
@@ -279,6 +289,8 @@ Instance::Instance(Instance&& other) noexcept {
     other.total_soft_weight = 0;
     other.total_hard_length = 0;
     other.total_soft_length = 0;
+    other.fixed_soft_cost = 0;
+    other.has_empty_hard_clause = false;
     other.unit_clause_count = 0;
     other.unit_soft_clause_count = 0;
 }
@@ -310,6 +322,8 @@ Instance& Instance::operator=(Instance&& other) noexcept {
         total_soft_weight = other.total_soft_weight;
         total_hard_length = other.total_hard_length;
         total_soft_length = other.total_soft_length;
+        fixed_soft_cost = other.fixed_soft_cost;
+        has_empty_hard_clause = other.has_empty_hard_clause;
         unit_clause_count = other.unit_clause_count;
         unit_soft_clause_count = other.unit_soft_clause_count;
         // Reset other to a valid, destructible state
@@ -334,6 +348,8 @@ Instance& Instance::operator=(Instance&& other) noexcept {
         other.total_soft_weight = 0;
         other.total_hard_length = 0;
         other.total_soft_length = 0;
+        other.fixed_soft_cost = 0;
+        other.has_empty_hard_clause = false;
         other.unit_clause_count = 0;
         other.unit_soft_clause_count = 0;
     }
@@ -360,8 +376,8 @@ ReducedInstance Instance::reduce(const vector<int> &assignment) const
         // result.reduced stays as default-constructed empty Instance
         result.old2new.assign(num_vars + 1, 0);
         result.new2old.assign(1, 0); // index 0 unused
-        result.base_cost = 0;
-        result.unsat = false;
+        result.base_cost = fixed_soft_cost;
+        result.unsat = has_empty_hard_clause;
         return result;
     }
 
@@ -386,8 +402,14 @@ ReducedInstance Instance::reduce(const vector<int> &assignment) const
         return assignment[v]; // expected -1, 0, or 1
     };
 
-    result.base_cost = 0;
-    result.unsat = false;
+    result.base_cost = fixed_soft_cost;
+    result.unsat = has_empty_hard_clause;
+    if (result.unsat)
+    {
+        result.old2new.assign(num_vars + 1, 0);
+        result.new2old.assign(1, 0);
+        return result;
+    }
 
     // First pass: simplify clauses under the partial assignment
     for (int c = 0; c < num_clauses; ++c)
@@ -499,6 +521,8 @@ ReducedInstance Instance::reduce(const vector<int> &assignment) const
     reducedInst.total_soft_weight = 0;
     reducedInst.total_hard_length = 0;
     reducedInst.total_soft_length = 0;
+    reducedInst.fixed_soft_cost = 0;
+    reducedInst.has_empty_hard_clause = false;
     reducedInst.unit_clause_count = 0;
     reducedInst.unit_soft_clause_count = 0;
     // Allocate internal arrays based on new sizes
@@ -597,192 +621,207 @@ ReducedInstance Instance::reduce(const vector<int> &assignment) const
 
 void Instance::build_instance(const char *filename)
 {
-    total_soft_length = 0;
-    total_hard_length = 0;
-    
-    istringstream iss;
+    ifstream header_file(filename);
+    if (!header_file)
+        throw runtime_error(string("cannot open WCNF file: ") + filename);
+
     string line;
-    char tempstr1[10];
-    char tempstr2[10];
+    bool header_found = false;
+    int declared_clauses = 0;
 
-    ifstream infile(filename);
-    if (!infile)
+    while (getline(header_file, line))
     {
-        cout << "c the input filename " << filename << " is invalid, please input the correct filename." << endl;
-        exit(-1);
+        istringstream input(line);
+        string tag;
+        if (!(input >> tag) || tag == "c")
+            continue;
+
+        if (tag != "p")
+            continue;
+
+        string format;
+        if (header_found || !(input >> format >> num_vars >> declared_clauses >> top_clause_weight) ||
+            format != "wcnf" || num_vars < 0 || declared_clauses < 0 || top_clause_weight <= 0)
+            throw runtime_error("invalid WCNF header");
+
+        header_found = true;
     }
 
-    /*** build problem data structures of the instance ***/
-    while (getline(infile, line))
-    {
-        if (line.length() > 7 && line[3] == 'n' && line[4] == 'v' && line[5] == 'a' && line[6] == 'r' && line[7] == 's')
-        {
-            int items = sscanf(line.c_str(), "%s %s %d", tempstr1, tempstr2, &num_vars);
-        }
-        
-        if (line.length() > 6 && line[3] == 'n' && line[4] == 'c' && line[5] == 'l' && line[6] == 's')
-        {
-            int items = sscanf(line.c_str(), "%s %s %d", tempstr1, tempstr2, &num_clauses);
-            break;
-        }
-    }
+    if (!header_found)
+        throw runtime_error("missing WCNF header");
 
+    num_clauses = declared_clauses;
     allocate_memory();
 
-    int v, c;
-    for (c = 0; c < num_clauses; c++)
+    for (int c = 0; c < num_clauses; ++c)
     {
         clause_lit_count[c] = 0;
-        clause_lit[c] = NULL;
+        clause_lit[c] = nullptr;
     }
-    for (v = 1; v <= num_vars; ++v)
+    for (int v = 1; v <= num_vars; ++v)
     {
         var_lit_count[v] = 0;
-        var_lit[v] = NULL;
-        var_neighbor[v] = NULL;
+        var_lit[v] = nullptr;
+        var_neighbor[v] = nullptr;
+        var_neighbor_count[v] = 0;
     }
 
-    int cur_lit;
-    c = 0;
     problem_weighted = 0;
-    num_hclauses = num_sclauses = 0;
+    num_hclauses = 0;
+    num_sclauses = 0;
     unit_clause_count = 0;
     unit_soft_clause_count = 0;
-    int *redunt_test = new int[num_vars + 1];
-    memset(redunt_test, 0, sizeof(int) * (num_vars + 1));
-    
-    top_clause_weight = numeric_limits<long long>::max();
     total_soft_weight = 0;
-    while (getline(infile, line))
+    total_soft_length = 0;
+    total_hard_length = 0;
+    fixed_soft_cost = 0;
+    has_empty_hard_clause = false;
+
+    ifstream clause_file(filename);
+    if (!clause_file)
+        throw runtime_error(string("cannot reopen WCNF file: ") + filename);
+
+    int declared_clause_count = 0;
+    int stored_clause_count = 0;
+    vector<int> seen_literal(num_vars + 1, 0);
+
+    while (getline(clause_file, line))
     {
-        if (line[0] == 'c')
+        istringstream input(line);
+        string tag;
+        if (!(input >> tag) || tag == "c" || tag == "p")
             continue;
-        else if (line[0] == 'p')
-        {
-            int read_items;
-            num_vars = num_clauses = 0;
-            read_items = sscanf(line.c_str(), "%s %s %d %d %lld", tempstr1, tempstr2, &num_vars, &num_clauses, &top_clause_weight);
 
-            if (read_items < 5)
+        ++declared_clause_count;
+        if (declared_clause_count > declared_clauses)
+            throw runtime_error("WCNF contains more clauses than declared");
+
+        bool hard_clause = tag == "h";
+        long long weight = top_clause_weight;
+        if (!hard_clause)
+        {
+            try
             {
-                cout << "read item < 5 " << endl;
-                exit(-1);
+                size_t consumed = 0;
+                weight = stoll(tag, &consumed);
+                if (consumed != tag.size() || weight <= 0)
+                    throw runtime_error("invalid soft-clause weight");
             }
-            iss.clear();
-            iss.str(line);
-            iss.seekg(0, ios::beg);
-            continue;
-        }
-        else
-        {
-            iss.clear();
-            iss.str(line);
-            iss.seekg(0, ios::beg);
-        }
-        clause_lit_count[c] = 0;
-
-        if (line[0] == 'h')
-        {
-            iss >> tempstr1;
-            org_clause_weight[c] = numeric_limits<long long>::max();
-        }
-        else
-            iss >> org_clause_weight[c];
-        if (org_clause_weight[c] != top_clause_weight)
-        {
-            if (org_clause_weight[c] != 1)
-                problem_weighted = 1;
-            total_soft_weight += org_clause_weight[c];
-            soft_clause_num_index[num_sclauses++] = c;
-        }
-        else
-        {
-            num_hclauses++;
-        }
-
-        iss >> cur_lit;
-        int clause_reduent = 0;
-        while (cur_lit != 0)
-        {
-            if (redunt_test[abs(cur_lit)] == 0)
+            catch (const exception &)
             {
-                temp_lit[clause_lit_count[c]] = cur_lit;
-                clause_lit_count[c]++;
-                redunt_test[abs(cur_lit)] = cur_lit;
+                throw runtime_error("invalid WCNF clause weight");
             }
-            else if (redunt_test[abs(cur_lit)] != cur_lit)
+            hard_clause = weight == top_clause_weight;
+        }
+
+        vector<int> literals;
+        bool tautology = false;
+        bool terminated = false;
+        long long literal_value = 0;
+        while (input >> literal_value)
+        {
+            if (literal_value == 0)
             {
-                clause_reduent = 1;
+                terminated = true;
                 break;
             }
-            iss >> cur_lit;
-        }
-        if (clause_reduent == 1)
-        {
-            for (int i = 0; i < clause_lit_count[c]; ++i)
-                redunt_test[abs(temp_lit[i])] = 0;
+            if (literal_value < -num_vars || literal_value > num_vars)
+                throw runtime_error("literal is outside the declared variable range");
 
-            num_clauses--;
-            clause_lit_count[c] = 0;
-            continue;
-        }
-
-        clause_lit[c] = new lit[clause_lit_count[c] + 1];
-
-        int i;
-        for (i = 0; i < clause_lit_count[c]; ++i)
-        {
-            clause_lit[c][i].clause_num = c;
-            v = abs(temp_lit[i]);
-            clause_lit[c][i].var_num = v;
-            redunt_test[v] = 0;
-            if (temp_lit[i] > 0)
-                clause_lit[c][i].sense = 1;
-            else
-                clause_lit[c][i].sense = 0;
-
-            var_lit_count[v]++;
-        }
-        clause_lit[c][i].var_num = 0;
-        clause_lit[c][i].clause_num = -1;
-
-        if (clause_lit_count[c] == 1){
-            unit_clause[unit_clause_count++] = clause_lit[c][0];
-            if (org_clause_weight[c] != top_clause_weight){
-                unit_soft_clause[unit_soft_clause_count++] = clause_lit[c][0];
+            const int literal = static_cast<int>(literal_value);
+            const int variable = abs(literal);
+            if (seen_literal[variable] == 0)
+            {
+                seen_literal[variable] = literal;
+                literals.push_back(literal);
+            }
+            else if (seen_literal[variable] != literal)
+            {
+                tautology = true;
             }
         }
 
-        if (top_clause_weight == org_clause_weight[c])
+        if (!terminated)
+            throw runtime_error("WCNF clause is missing its terminating zero");
+
+        for (size_t i = 0; i < literals.size(); ++i)
+            seen_literal[abs(literals[i])] = 0;
+
+        if (tautology)
+            continue;
+
+        if (literals.empty())
         {
+            if (hard_clause)
+                has_empty_hard_clause = true;
+            else
+            {
+                fixed_soft_cost += weight;
+                total_soft_weight += weight;
+                if (weight != 1)
+                    problem_weighted = 1;
+            }
+            continue;
+        }
+
+        const int c = stored_clause_count++;
+        clause_lit_count[c] = static_cast<int>(literals.size());
+        clause_lit[c] = new lit[clause_lit_count[c] + 1];
+        org_clause_weight[c] = weight;
+
+        for (int i = 0; i < clause_lit_count[c]; ++i)
+        {
+            const int literal = literals[i];
+            const int v = abs(literal);
+            clause_lit[c][i].clause_num = c;
+            clause_lit[c][i].var_num = v;
+            clause_lit[c][i].sense = literal > 0 ? 1 : 0;
+            ++var_lit_count[v];
+        }
+        clause_lit[c][clause_lit_count[c]].var_num = 0;
+        clause_lit[c][clause_lit_count[c]].clause_num = -1;
+
+        if (hard_clause)
+        {
+            ++num_hclauses;
             total_hard_length += clause_lit_count[c];
         }
         else
         {
+            ++num_sclauses;
+            soft_clause_num_index[num_sclauses - 1] = c;
+            total_soft_weight += weight;
             total_soft_length += clause_lit_count[c];
+            if (weight != 1)
+                problem_weighted = 1;
         }
-        c++;
-    }
-    delete[] redunt_test;
-    infile.close();
 
-    // creat var literal arrays
-    for (v = 1; v <= num_vars; ++v)
+        if (clause_lit_count[c] == 1)
+        {
+            unit_clause[unit_clause_count++] = clause_lit[c][0];
+            if (!hard_clause)
+                unit_soft_clause[unit_soft_clause_count++] = clause_lit[c][0];
+        }
+    }
+
+    if (declared_clause_count != declared_clauses)
+        throw runtime_error("WCNF clause count does not match the header");
+
+    num_clauses = stored_clause_count;
+    for (int v = 1; v <= num_vars; ++v)
     {
         var_lit[v] = new lit[var_lit_count[v] + 1];
-        var_lit_count[v] = 0; // reset to 0, for build up the array
+        var_lit_count[v] = 0;
     }
-    // scan all clauses to build up var literal arrays
-    for (c = 0; c < num_clauses; ++c)
+    for (int c = 0; c < num_clauses; ++c)
     {
         for (int i = 0; i < clause_lit_count[c]; ++i)
         {
-            v = clause_lit[c][i].var_num;
-            var_lit[v][var_lit_count[v]] = clause_lit[c][i];
-            ++var_lit_count[v];
+            const int v = clause_lit[c][i].var_num;
+            var_lit[v][var_lit_count[v]++] = clause_lit[c][i];
         }
     }
-    for (v = 1; v <= num_vars; ++v)
+    for (int v = 1; v <= num_vars; ++v)
         var_lit[v][var_lit_count[v]].clause_num = -1;
 }
 
@@ -867,7 +906,10 @@ void Instance::print_info()
 
 long long Instance::verify_solution(const vector<int> &assignment) const
 {
-    long long total_cost = 0;
+    if (has_empty_hard_clause)
+        return -1;
+
+    long long total_cost = fixed_soft_cost;
 
     if(assignment.size() < (size_t)num_vars + 1) {
         cout << "c Warning: assignment size " << assignment.size() << " is not sufficient for " << num_vars << " variables." << endl;
