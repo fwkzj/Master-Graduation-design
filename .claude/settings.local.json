@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ping *)",
+      "Bash(ssh-keygen -t ed25519 -N \"\" -f ~/.ssh/id_ed25519 -C \"windows-claude\")",
+      "Read(//c/Users/fwkzj/.ssh/**)"
+    ]
+  }
+}
