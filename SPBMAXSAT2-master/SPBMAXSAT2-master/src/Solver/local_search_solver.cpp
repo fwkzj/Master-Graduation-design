@@ -35,6 +35,13 @@ const Settings &LocalSearchSolver::get_settings() const
     return backend_.settings;
 }
 
+void LocalSearchSolver::set_cutoff_time(double seconds)
+{
+    backend_.settings.cutoff_time = seconds;
+    if (persistent_worker_)
+        persistent_worker_->set_cutoff_time(seconds);
+}
+
 void LocalSearchSolver::begin_search()
 {
     util::start_global_timer();

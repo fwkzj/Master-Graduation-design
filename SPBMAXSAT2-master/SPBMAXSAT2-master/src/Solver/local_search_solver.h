@@ -27,6 +27,13 @@ public:
     void set_settings(const Settings &settings);
     const Settings &get_settings() const;
 
+    // Shorten the local-search cutoff without discarding accumulated
+    // state. set_settings() resets the persistent worker and with it the
+    // adaptive clause weights, so an embedder that only needs to trim the
+    // next window -- because the end-to-end budget is nearly spent -- has
+    // to go through here instead.
+    void set_cutoff_time(double seconds);
+
     // Number of variables in the original WCNF, i.e. the length an assignment
     // vector must have (minus the unused element 0). An embedder that keeps its
     // own copy of the instance has to size its vectors by this, not by its own

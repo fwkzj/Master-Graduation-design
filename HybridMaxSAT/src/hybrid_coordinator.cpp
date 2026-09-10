@@ -52,6 +52,11 @@ long long to_log_value(const Int &value)
     return value == Int_MAX ? -1 : tolong(value);
 }
 
+// Longest backoff the adaptive policy may reach, as a power of two of
+// the base CASH window: 4 means a 15-second base tops out at 240
+// seconds between handoffs.
+const int kMaxBackoffRounds = 4;
+
 int count_propagated(const std::vector<int> &partial_assignment)
 {
     int count = 0;
@@ -160,12 +165,22 @@ void HybridCoordinator::ensure_started()
         started_ = true;
         instance_start_wall_ = wall_now();
         next_spb_wall_ = instance_start_wall_ + schedule_.cash_window_seconds;
-        // Wake CASH at the first window boundary, or at the end-to-end budget
-        // if that comes first.
-        set_cash_deadline(std::min(
-            instance_start_wall_ + schedule_.total_budget_seconds,
-            next_spb_wall_));
+        arm_deadline();
     }
+}
+
+void HybridCoordinator::arm_deadline()
+{
+    const double budget_deadline =
+        instance_start_wall_ + schedule_.total_budget_seconds;
+    // Under the preemptive policy the current SAT call is pulled out of its
+    // search at the next window boundary so SPB can start on schedule.
+    // Under the non-preemptive one the terminator only ever fires at the
+    // end-to-end budget, and SPB waits for a scheduling point CASH reached
+    // by itself. See HybridSchedule::preemptive for why both exist.
+    set_cash_deadline(schedule_.preemptive
+                          ? std::min(budget_deadline, next_spb_wall_)
+                          : budget_deadline);
 }
 
 double HybridCoordinator::wall_elapsed() const
@@ -245,17 +260,25 @@ bool HybridCoordinator::find_upper_bound(
     }
     event.propagated_original_variables = count_propagated(*initial_assignment);
 
+    // Give SPB only what is left of the end-to-end budget, so the last round
+    // cannot push the run past its own deadline and hand the record to the
+    // watchdog. Every other round uses the configured window.
+    const double remaining =
+        schedule_.total_budget_seconds - wall_elapsed();
+    spb_solver_.set_cutoff_time(
+        std::min<double>(schedule_.spb_window_seconds, remaining));
+
     const Solution result =
         spb_solver_.improve_with_persistent_weights(*initial_assignment);
-    next_spb_wall_ = wall_now() + schedule_.cash_window_seconds;
-    set_cash_deadline(std::min(
-        instance_start_wall_ + schedule_.total_budget_seconds,
-        next_spb_wall_));
+    last_round_end_wall_ = wall_now();
+    next_spb_wall_ = last_round_end_wall_ + schedule_.cash_window_seconds;
+    arm_deadline();
 
     if (!result.feasible)
     {
         // CASH does not call on_upper_bound_result() for a rejected candidate,
         // so this round has to be flushed here or it would be lost.
+        note_round_outcome(false);
         events_.push_back(event);
         flush_pending_events();
         return false;
@@ -264,19 +287,51 @@ bool HybridCoordinator::find_upper_bound(
     // improve_with_persistent_weights() independently re-evaluates the model
     // using the original WCNF before returning this result.
     event.spb_ub = result.cost;
-    if (!best_spb_certificate_.feasible || result.cost < best_spb_certificate_.cost)
-        best_spb_certificate_ = result;
+    {
+        // The watchdog may ask for the certificate from its own thread
+        // at any moment, including this one.
+        std::lock_guard<std::mutex> guard(certificate_mutex_);
+        if (!best_spb_certificate_.feasible ||
+            result.cost < best_spb_certificate_.cost)
+            best_spb_certificate_ = result;
+    }
 
     events_.push_back(event);
     if (Int((int64_t)result.cost) >= current_upper_bound)
+    {
+        // A feasible model that does not beat the bound CASH already
+        // holds costs exactly as much as no model at all: the window was
+        // spent and nothing improved. CASH never reports this case back
+        // to the callback, so it is folded in here.
+        note_round_outcome(false);
         return false;
+    }
 
     candidate_upper_bound = Int((int64_t)result.cost);
     return true;
 }
 
+void HybridCoordinator::note_round_outcome(bool productive)
+{
+    if (!schedule_.adaptive)
+        return;
+
+    if (productive)
+        barren_rounds_ = 0;
+    else if (barren_rounds_ < kMaxBackoffRounds)
+        ++barren_rounds_;
+
+    // Back off geometrically while SPB keeps returning nothing CASH can
+    // use, so an unproductive handoff stops taking a fixed slice out of
+    // every cycle; one accepted bound resets the window to its base.
+    const double factor = std::pow(2.0, static_cast<double>(barren_rounds_));
+    next_spb_wall_ =
+        last_round_end_wall_ + schedule_.cash_window_seconds * factor;
+}
+
 void HybridCoordinator::on_upper_bound_result(HybridBoundResult result)
 {
+    note_round_outcome(result == HybridBoundResult::Accepted);
     if (!events_.empty())
     {
         events_.back().cash_bound_result = result;
@@ -334,6 +389,15 @@ const Solution &HybridCoordinator::best_spb_certificate() const
 bool HybridCoordinator::has_spb_certificate() const
 {
     return best_spb_certificate_.feasible;
+}
+
+bool HybridCoordinator::certificate_snapshot(long long &cost) const
+{
+    std::lock_guard<std::mutex> guard(certificate_mutex_);
+    if (!best_spb_certificate_.feasible)
+        return false;
+    cost = static_cast<long long>(best_spb_certificate_.cost);
+    return true;
 }
 
 } // namespace hybridmaxsat

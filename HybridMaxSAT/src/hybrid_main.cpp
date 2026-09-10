@@ -39,7 +39,8 @@ namespace {
 // ---------------------------------------------------------------------------
 // Configuration
 
-enum class Config { CASH, SPB, Hybrid, HybridNoInference };
+enum class Config { CASH, SPB, Hybrid, HybridNoInference, HybridNatural,
+                    HybridAdaptive };
 
 const char *config_name(Config config)
 {
@@ -49,6 +50,8 @@ const char *config_name(Config config)
     case Config::SPB: return "SPB";
     case Config::Hybrid: return "Hybrid";
     case Config::HybridNoInference: return "HybridNoInference";
+    case Config::HybridNatural: return "HybridNatural";
+    case Config::HybridAdaptive: return "HybridAdaptive";
     }
     return "unknown";
 }
@@ -61,6 +64,16 @@ bool parse_config(const std::string &text, Config &config)
     if (text == "HybridNoInference")
     {
         config = Config::HybridNoInference;
+        return true;
+    }
+    if (text == "HybridNatural")
+    {
+        config = Config::HybridNatural;
+        return true;
+    }
+    if (text == "HybridAdaptive")
+    {
+        config = Config::HybridAdaptive;
         return true;
     }
     return false;
@@ -282,14 +295,48 @@ Options g_options;
 RunSummary g_summary;
 long long g_start_epoch = 0;
 
+// The SCIP limit that was actually applied, published by
+// apply_scip_limit() so the watchdog can report it too. A watchdog
+// record used to carry scip_seconds = 0, which is indistinguishable
+// from "no limit was applied" and was the only reliable way to tell
+// such a record apart from a normal one.
+std::atomic<double> g_applied_scip_seconds{0.0};
+
 // Enforces the end-to-end budget independently of the solver. CASH's own
 // alarms were measured not to interrupt a running SAT call, so a run that the
 // terminator cannot reach would otherwise outlive its budget with no record at
 // all. This fires a little after the deadline so a graceful stop -- which
 // carries the solver's real bounds -- wins whenever it can.
-void start_watchdog(int budget_seconds)
+// Set by the hybrid configuration once its coordinator exists, so a
+// run the watchdog has to end still reports the best SPB model the run
+// produced. Both the normal path and the watchdog fill the record
+// through backfill_spb_certificate(), so they cannot drift apart.
+hybridmaxsat::HybridCoordinator *g_watchdog_coordinator = nullptr;
+
+void backfill_spb_certificate(RunSummary &summary)
 {
-    const int grace_seconds = 3;
+    if (g_watchdog_coordinator == nullptr)
+        return;
+
+    long long cost = -1;
+    if (!g_watchdog_coordinator->certificate_snapshot(cost))
+        return;
+    summary.has_spb_certificate = true;
+    summary.spb_certificate_ub = cost;
+    // CASH can end a run without ever holding a model -- its SAT calls
+    // are interrupted at each window boundary -- while SPB did find one.
+    // The best feasible value the run produced is what the
+    // cross-configuration comparison needs, so the certificate backfills
+    // it. `cash_proved_optimal` is untouched: only CASH may claim that.
+    const Int certificate(static_cast<int64_t>(summary.spb_certificate_ub));
+    if (summary.final_ub == Int_MAX || certificate < summary.final_ub)
+        summary.final_ub = certificate;
+    if (summary.final_incumbent == Int_MAX)
+        summary.final_incumbent = certificate;
+}
+
+void start_watchdog(int budget_seconds, int grace_seconds)
+{
     std::thread([budget_seconds, grace_seconds]() {
         std::this_thread::sleep_for(
             std::chrono::seconds(budget_seconds + grace_seconds));
@@ -300,14 +347,23 @@ void start_watchdog(int budget_seconds)
         try
         {
             RunSummary summary;
-            if (pb_solver != NULL)
-            {
-                summary.final_lb = pb_solver->LB_goalvalue;
-                summary.final_ub = pb_solver->UB_goalvalue;
-                summary.final_incumbent = pb_solver->best_goalvalue;
-            }
+            // Deliberately NOT reading pb_solver's bounds. They are
+            // `Int`, an arbitrary-precision type the solver thread keeps
+            // mutating, and reading one from here produced a 424248-digit
+            // lower bound in runs/iter1_debug50. The signal path already
+            // refuses the same read for the same reason. The only bound
+            // this path reports is the SPB certificate below, which is a
+            // plain integer copied out under a lock.
+            summary.scip_seconds = g_applied_scip_seconds.load();
+            summary.cash_deadline_polls = hybridmaxsat::cash_deadline_polls();
+            backfill_spb_certificate(summary);
+            // A reason of its own, not "budget": reaching here means the
+            // run outlived its budget plus the work the normal path may
+            // still have been finishing, which is a finding about the
+            // protocol rather than a run that stopped on schedule.
             publish_record(build_run_complete_line(
-                g_options, summary, g_start_epoch, end_epoch, "budget"));
+                g_options, summary, g_start_epoch, end_epoch,
+                "budget_watchdog"));
         }
         catch (...)
         {
@@ -317,7 +373,7 @@ void start_watchdog(int budget_seconds)
             // than a record without bounds, so fall back to the latter.
             publish_record(build_run_complete_line(
                 g_options, RunSummary(), g_start_epoch, end_epoch,
-                "budget_no_bounds"));
+                "budget_watchdog_no_bounds"));
         }
         _Exit(0);
     }).detach();
@@ -401,6 +457,7 @@ double apply_scip_limit(double seconds)
 #ifdef USE_SCIP
     opt_scip_cpu = seconds;
 #endif
+    g_applied_scip_seconds.store(seconds);
     return seconds;
 }
 
@@ -575,6 +632,14 @@ void run_hybrid(const Options &options, RunSummary &summary)
     schedule.total_budget_seconds = options.budget_seconds;
     schedule.random_seed = options.seed;
     schedule.no_inference = options.config == Config::HybridNoInference;
+    // HybridNatural is the same protocol without the forced interrupt:
+    // everything else about the schedule is identical, which is what
+    // makes the pair an ablation of the preemption rather than of the
+    // protocol.
+    schedule.preemptive = options.config != Config::HybridNatural &&
+                          options.config != Config::HybridAdaptive;
+    // HybridAdaptive is HybridNatural plus the progress-based window.
+    schedule.adaptive = options.config == Config::HybridAdaptive;
 
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
     // that is the whole point of the handoff. The default (0) means the SCIP
@@ -590,6 +655,8 @@ void run_hybrid(const Options &options, RunSummary &summary)
     hybridmaxsat::HybridCoordinator coordinator(options.input_path, schedule);
     coordinator.set_event_log(options.events_path, options.instance_id);
     cash_solver.set_hybrid_callback(&coordinator);
+    // Lets the watchdog report the same SPB certificate this path does.
+    g_watchdog_coordinator = &coordinator;
 
     parse_WCNF_file(const_cast<char *>(options.input_path.c_str()), cash_solver);
     cash_solver.maxsat_solve(PbSolver::sc_Minimize);
@@ -598,22 +665,7 @@ void run_hybrid(const Options &options, RunSummary &summary)
     coordinator.flush_pending_events();
 
     fill_from_solver(cash_solver, summary);
-    summary.has_spb_certificate = coordinator.has_spb_certificate();
-    if (summary.has_spb_certificate)
-    {
-        summary.spb_certificate_ub = coordinator.best_spb_certificate().cost;
-        // CASH can end the run without ever holding a model -- its SAT calls are
-        // interrupted at each window boundary -- while SPB did find one. The
-        // best feasible value the run produced is what the cross-configuration
-        // comparison needs, so the certificate backfills it; without this the
-        // hybrid would report "n/a" on runs where it did have a solution in
-        // hand. `cash_proved_optimal` is untouched: only CASH may claim that.
-        const Int certificate((int64_t)summary.spb_certificate_ub);
-        if (summary.final_ub == Int_MAX || certificate < summary.final_ub)
-            summary.final_ub = certificate;
-        if (summary.final_incumbent == Int_MAX)
-            summary.final_incumbent = certificate;
-    }
+    backfill_spb_certificate(summary);
     summary.exit_reason = summary.cash_proved_optimal
                               ? optimal_exit_reason(summary)
                               : "budget";
@@ -712,7 +764,7 @@ Options parse_options(int argc, char *argv[])
 
 void print_usage()
 {
-    std::cerr << "usage: hybridmaxsat [--config CASH|SPB|Hybrid|HybridNoInference]\n"
+    std::cerr << "usage: hybridmaxsat [--config CASH|SPB|Hybrid|HybridNoInference|HybridNatural|HybridAdaptive]\n"
               << "                    [--seed N] [--budget SECONDS]\n"
               << "                    [--cash-window SECONDS] [--spb-window SECONDS]\n"
               << "                    [--scip-cpu SECONDS]\n"
@@ -746,7 +798,16 @@ int main(int argc, char *argv[])
         // the signal with the default disposition, so nothing depends on it.
         std::signal(SIGTERM, on_budget_signal);
 
-        start_watchdog(g_options.budget_seconds);
+        // The watchdog is a backstop for a process that outlives its
+        // budget. Its grace only has to cover what the normal path may
+        // still be finishing at the deadline -- at most one SPB window,
+        // the longest step that cannot be cut short -- and it has to stay
+        // below the harness's own grace (run_batch.py HARNESS_GRACE) so
+        // the run still writes its own record instead of being signalled.
+        const int watchdog_grace =
+            g_options.config == Config::SPB ? 5
+                                            : g_options.spb_window_seconds + 3;
+        start_watchdog(g_options.budget_seconds, watchdog_grace);
 
         // The coordinator owns the round log for the hybrid configurations; the
         // other two still produce the file so that every run directory has the
@@ -769,6 +830,8 @@ int main(int argc, char *argv[])
             break;
         case Config::Hybrid:
         case Config::HybridNoInference:
+        case Config::HybridNatural:
+        case Config::HybridAdaptive:
             run_hybrid(g_options, g_summary);
             break;
         }

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -48,6 +49,25 @@ struct HybridSchedule {
     // Ablation switch: when true the CASH-propagated values are discarded and
     // SPB always starts from a fully random assignment (all -1 entries).
     bool no_inference = false;
+    // Handoff policy. True is the protocol as originally specified: the
+    // coordinator arms CaDiCaL's terminator at the next window boundary, so
+    // a SAT call that would outlive the window is cut short and SPB gets its
+    // turn on schedule. Measured on MSE23W that policy is destructive --
+    // CASH's CDCL search does not recover from the cut and loses far more
+    // optimality proofs than SPB can win back -- so the switch exists to run
+    // the same protocol without it. False arms the terminator with the
+    // end-to-end budget only, which restricts SPB to scheduling points CASH
+    // reached on its own; a window then reads as a minimum amount of CASH
+    // time between two handoffs rather than a hard preemption point.
+    bool preemptive = true;
+    // Progress-based scheduling. When true the gap before the next
+    // handoff doubles for every consecutive round in which SPB produced
+    // nothing CASH could use, and resets the moment one of its bounds is
+    // accepted. The observables are exactly the ones the round log
+    // already publishes -- feasibility and strict improvement -- so the
+    // schedule stays deterministic and reproducible from the event
+    // stream. See note_round_outcome().
+    bool adaptive = false;
 };
 
 struct RoundEvent {
@@ -88,6 +108,12 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     const std::vector<RoundEvent> &round_events() const;
     const Solution &best_spb_certificate() const;
     bool has_spb_certificate() const;
+    // Copy the best verified SPB cost out under the lock the writer
+    // holds. The watchdog runs on its own thread and may look at the
+    // certificate while CASH's thread is replacing it, so it must not
+    // touch best_spb_certificate() directly. Returns false when no
+    // verified model has been produced yet.
+    bool certificate_snapshot(long long &cost) const;
 
   private:
     HybridSchedule schedule_;
@@ -95,13 +121,29 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     // Wall-clock seconds since the protocol started. The `cash_cpu_time`
     // values CASH passes in are ignored on purpose; see HybridSchedule.
     void ensure_started();
+    // Arm CaDiCaL's deadline terminator. Under the preemptive policy this is
+    // the next window boundary; under the non-preemptive one it is only ever
+    // the end-to-end budget.
+    void arm_deadline();
+    // Fold one round's outcome into the adaptive schedule. A no-op
+    // unless schedule_.adaptive is set.
+    void note_round_outcome(bool productive);
     double wall_elapsed() const;
     bool started_ = false;
     double instance_start_wall_ = 0.0;
     double next_spb_wall_ = 0.0;
+    // Wall clock at the end of the most recent SPB round; the adaptive
+    // schedule measures its next gap from there, not from whenever
+    // CASH got around to reporting the round's verdict.
+    double last_round_end_wall_ = 0.0;
+    // Consecutive rounds SPB could not improve. Drives the backoff.
+    int barren_rounds_ = 0;
     int round_ = 0;
     std::vector<RoundEvent> events_;
     Solution best_spb_certificate_;
+    // Guards best_spb_certificate_ between CASH's thread and the
+    // watchdog; see certificate_snapshot().
+    mutable std::mutex certificate_mutex_;
     std::ofstream event_log_;
     std::string event_log_instance_id_;
     std::size_t written_events_ = 0;

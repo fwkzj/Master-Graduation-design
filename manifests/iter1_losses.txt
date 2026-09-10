@@ -1,0 +1,12 @@
+# The nine MSE23W instances where the preemptive hybrid lost a CASH proof in
+# runs/debug50 (all three seeds, deterministically). Used to test the
+# non-preemptive handoff against the exact runs it has to recover.
+MSE23W/abstraction-refinement_wt-downcast-pmd.wcnf
+MSE23W/causal-discovery_wt-causal_Link_10_1000.wcnf
+MSE23W/causal-discovery_wt-causal_Meta_7_528.wcnf
+MSE23W/css-refactoring_wt-youtube.dimacs.wcnf
+MSE23W/drmx-cryptogen_wt-geffe128_1.wcnf
+MSE23W/drmx-cryptogen_wt-geffe128_3.wcnf
+MSE23W/frb_wt-frb25-13-1.wcnf
+MSE23W/quantum-circuit-su2random_5_30_ibmq-london_5.wcnf
+MSE23W/tcp_wt-tcp_students_112_it_2.wcnf

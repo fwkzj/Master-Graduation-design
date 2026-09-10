@@ -33,7 +33,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-ALL_CONFIGS = ["CASH", "SPB", "Hybrid", "HybridNoInference"]
+ALL_CONFIGS = ["CASH", "SPB", "Hybrid", "HybridNoInference",
+               "HybridNatural", "HybridAdaptive"]
 ALL_SEEDS = [20260909, 20260910, 20260911]
 
 # Overridden from the command line by --configs/--seeds so a reduced sweep is
@@ -59,8 +60,9 @@ NOT_AVAILABLE = "n/a"
 # an optimality proof from CASH's ILP component rather than from its CDCL
 # search: a solved instance either way, but one that says the hybrid protocol
 # never got the chance to interleave.
-EXIT_REASONS = {"optimum", "optimum_scip", "budget", "budget_signal",
-                "budget_no_bounds", "completed"}
+EXIT_REASONS = {"optimum", "optimum_scip", "budget", "budget_watchdog",
+                "budget_signal", "budget_no_bounds",
+                "budget_watchdog_no_bounds", "completed"}
 
 RECORD_RE = re.compile(r'\{"event":"run_complete".*\}')
 
@@ -174,7 +176,7 @@ def validate(record):
             problems.append(
                 f"claims optimality but bounds differ: "
                 f"{brief(low)} vs {brief(high)}")
-    if reason.startswith("budget_no_bounds"):
+    if reason.endswith("no_bounds"):
         problems.append("run ended without readable bounds")
     if reason not in EXIT_REASONS:
         problems.append(f"unknown exit_reason {reason!r}")
@@ -339,13 +341,24 @@ def summarise(args, statuses, meta):
     # runs the hybrid protocol is never entered, so they carry no information
     # about the CASH-vs-Hybrid difference and must not be read as agreement.
     cash_like = [s for s in statuses
-                 if s["config"] in ("CASH", "Hybrid", "HybridNoInference")]
+                 if s["config"] in ("CASH", "Hybrid", "HybridNoInference",
+                                    "HybridNatural", "HybridAdaptive")]
     if cash_like:
         via_scip = sum(1 for s in cash_like
                        if s["record"] and s["record"].get("scip_proved_optimal"))
         lines.append("")
         lines.append(f"# CASH-based runs solved by SCIP before any CASH window "
                      f"elapsed: {via_scip}/{len(cash_like)}")
+    # Records the watchdog had to write. Reaching the watchdog means the run
+    # outlived its budget plus one window, so these are protocol findings
+    # rather than routine budget stops and must not be averaged in with them.
+    watchdog = [s for s in statuses
+                if s["record"]
+                and str(s["record"].get("exit_reason", "")).startswith(
+                    "budget_watchdog")]
+    if watchdog:
+        lines.append("")
+        lines.append(f"# runs ended by the watchdog: {len(watchdog)}/{len(statuses)}")
     (batch_dir / "summary.md").write_text("# " + "\n# ".join(lines) + "\n")
     log(f"wrote {batch_dir / 'summary.tsv'}")
     return lines
