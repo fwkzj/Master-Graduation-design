@@ -27,6 +27,7 @@ LocalSearchSolver::LocalSearchSolver(const Instance &instance,
 void LocalSearchSolver::set_settings(const Settings &settings)
 {
     backend_.settings = settings;
+    reset_persistent_worker();
 }
 
 const Settings &LocalSearchSolver::get_settings() const
@@ -48,6 +49,9 @@ void LocalSearchSolver::begin_search()
 
 Solution LocalSearchSolver::solve()
 {
+    if (backend_.originInstance.has_empty_hard_clause)
+        return Solution();
+
     begin_search();
 
     Instance working_instance = backend_.originInstance;
@@ -64,6 +68,9 @@ Solution LocalSearchSolver::solve()
 Solution LocalSearchSolver::improve(const std::vector<int> &initial_solution)
 {
     validate_initial_solution(initial_solution);
+    if (backend_.originInstance.has_empty_hard_clause)
+        return Solution();
+
     begin_search();
 
     Instance working_instance = backend_.originInstance;
@@ -79,6 +86,33 @@ Solution LocalSearchSolver::improve(const std::vector<int> &initial_solution)
     return checked_result();
 }
 
+Solution LocalSearchSolver::improve_with_persistent_weights(
+    const std::vector<int> &initial_solution)
+{
+    validate_initial_solution(initial_solution);
+    if (backend_.originInstance.has_empty_hard_clause)
+        return Solution();
+
+    begin_search();
+
+    if (!persistent_worker_)
+    {
+        Instance working_instance = backend_.originInstance;
+        persistent_worker_.reset(new LSworker(std::move(working_instance)));
+        persistent_worker_->set_solver(&backend_);
+        persistent_worker_->settings();
+        persistent_worker_->settings(backend_.settings);
+        persistent_worker_->set_cutoff_time(backend_.settings.cutoff_time);
+    }
+
+    std::vector<int> working_solution = initial_solution;
+    persistent_worker_->local_search_with_init_solution(
+        working_solution, 0, persistent_weights_initialized_);
+    persistent_weights_initialized_ = true;
+
+    return checked_result();
+}
+
 Solution LocalSearchSolver::solve_with_crossover()
 {
     begin_search();
@@ -89,6 +123,12 @@ Solution LocalSearchSolver::solve_with_crossover()
 const SolutionPool &LocalSearchSolver::solution_pool() const
 {
     return backend_.solpool;
+}
+
+void LocalSearchSolver::reset_persistent_worker()
+{
+    persistent_worker_.reset();
+    persistent_weights_initialized_ = false;
 }
 
 void LocalSearchSolver::validate_initial_solution(

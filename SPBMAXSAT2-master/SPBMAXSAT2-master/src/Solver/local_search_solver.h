@@ -2,6 +2,7 @@
 #define SPBMAXSAT_LOCAL_SEARCH_SOLVER_H
 
 #include <string>
+#include <memory>
 #include <vector>
 
 #include "BasicStruct/instance.h"
@@ -33,6 +34,14 @@ public:
     // -1 entries are randomly completed before local search starts.
     Solution improve(const std::vector<int> &initial_solution);
 
+    // Improve a fresh complete or partial assignment while retaining the
+    // adaptive clause weights accumulated by previous calls on this object.
+    // The assignment-dependent state is rebuilt for every call.  This is the
+    // interface used by the CASH/SPB coordinator: the returned solution is
+    // still checked against the original WCNF before it is exposed.
+    Solution improve_with_persistent_weights(
+        const std::vector<int> &initial_solution);
+
     // Run the existing solution-pool and crossover pipeline.
     Solution solve_with_crossover();
 
@@ -40,8 +49,11 @@ public:
 
 private:
     Solver backend_;
+    std::unique_ptr<::LSworker> persistent_worker_;
+    bool persistent_weights_initialized_ = false;
 
     void begin_search();
+    void reset_persistent_worker();
     void validate_initial_solution(const std::vector<int> &initial_solution) const;
     Solution checked_result() const;
 };

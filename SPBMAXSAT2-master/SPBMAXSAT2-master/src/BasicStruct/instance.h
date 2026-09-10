@@ -29,6 +29,11 @@ public:
     long long total_soft_weight;
     long long total_hard_length;
     long long total_soft_length;
+    // Empty soft clauses are unavoidable fixed objective cost. They are kept
+    // outside the local-search clause stacks because no variable can satisfy
+    // them. An empty hard clause makes the instance infeasible.
+    long long fixed_soft_cost;
+    bool has_empty_hard_clause;
 
     // Literals and Clauses
     lit **var_lit;

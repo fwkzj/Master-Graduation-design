@@ -553,9 +553,15 @@ void MsSolver::maxsat_solve(solve_Command cmd)
 
     goal_gcd = soft_cls[0].fst;
     for (int i = 1; i < soft_cls.size() && goal_gcd != 1; ++i) goal_gcd = gcd(goal_gcd, soft_cls[i].fst);
+    // Empty soft clauses are parsed directly into fixed_goalval. They are
+    // still part of the original WCNF objective, so their weight must take
+    // part in the common unit used by every subsequent bound conversion.
+    if (fixed_goalval != 0 && goal_gcd != 1)
+        goal_gcd = gcd(goal_gcd, toweight(fixed_goalval));
     if (goal_gcd != 1) {
         if (LB_goalvalue != Int_MIN) LB_goalvalue /= Int(goal_gcd);
         if (UB_goalvalue != Int_MAX) UB_goalvalue /= Int(goal_gcd);
+        fixed_goalval /= Int(goal_gcd);
     }
 
     assert(best_goalvalue == Int_MAX);
@@ -864,6 +870,51 @@ void MsSolver::maxsat_solve(solve_Command cmd)
     //sat_solver.verbosity = 0;
     do { // a loop to process GBMO splitting points
     while (1) {
+      if (hybrid_callback != nullptr && hybrid_callback->should_stop(cpuTime())) {
+        asynch_interrupt = true;
+        break;
+      }
+      // A preceding SAT call and all of its MaxSAT-state updates have ended
+      // before this point.  `value()` therefore exposes only the persistent
+      // propagation state, never a branch decision or a relaxation variable.
+      if (hybrid_callback != nullptr && hybrid_callback->should_run(cpuTime())) {
+        std::vector<int> partial_assignment(pb_n_vars + 1, -1);
+        for (Var x = 0; x < pb_n_vars; ++x) {
+          lbool propagated = sat_solver.value(x);
+          if (propagated == l_True) partial_assignment[x + 1] = 1;
+          else if (propagated == l_False) partial_assignment[x + 1] = 0;
+        }
+
+        const Int current_upper_bound = UB_goalvalue == Int_MAX ?
+            Int_MAX : UB_goalvalue * goal_gcd;
+        Int candidate_upper_bound = Int_MAX;
+        if (hybrid_callback->find_upper_bound(partial_assignment,
+                                               current_upper_bound,
+                                               candidate_upper_bound)) {
+          HybridBoundResult bound_result = HybridBoundResult::NotImproved;
+          if (candidate_upper_bound < 0) {
+            bound_result = HybridBoundResult::InvalidNegative;
+          } else if (candidate_upper_bound % goal_gcd != 0) {
+            // Only values representable in CASH's transformed objective may
+            // be used for exact inference.
+            bound_result = HybridBoundResult::InvalidUnitConversion;
+          } else {
+            const Int scaled_candidate = candidate_upper_bound / goal_gcd;
+            if (scaled_candidate < LB_goalvalue) {
+              bound_result = HybridBoundResult::InvalidBelowLowerBound;
+            } else if (scaled_candidate < UB_goalvalue) {
+              // This is CASH's sole native bridge from a verified external UB
+              // to its transformed bound state. Later calls to
+              // harden_soft_cls() retain the existing hardening rules.
+              UB_goalvalue = scaled_candidate;
+              if (scaled_candidate < best_goalvalue)
+                best_goalvalue = scaled_candidate;
+              bound_result = HybridBoundResult::Accepted;
+            }
+          }
+          hybrid_callback->on_upper_bound_result(bound_result);
+        }
+      }
 #ifdef USE_SCIP
       if (scip_solver.must_be_started && cpuTime() >= start_solving_cpu + opt_scip_delay) {
         scip_solver.must_be_started = false;

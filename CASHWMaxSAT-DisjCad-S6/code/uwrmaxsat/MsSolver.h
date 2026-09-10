@@ -25,8 +25,40 @@
 #include "PbSolver.h"
 #include "VecMaps.h"
 #include "Sort.h"
+#include <vector>
 
 enum OptFinder {OPT_NONE, OPT_SCIP, OPT_MSAT};
+
+// The coordinator owns the SPB instance and the certificate for every bound
+// it returns. CASH only receives a numeric bound in original WCNF units.
+// Assignment index 0 is unused; values are 0, 1, or -1 (not propagated).
+enum class HybridBoundResult {
+    Accepted,
+    NotImproved,
+    InvalidNegative,
+    InvalidUnitConversion,
+    InvalidBelowLowerBound
+};
+
+class HybridMaxSatCallback {
+  public:
+    virtual ~HybridMaxSatCallback() {}
+
+    // Return true only when a complete 15-second CASH window has elapsed.
+    virtual bool should_run(double cash_cpu_time) = 0;
+
+    // Return true at a safe boundary after the end-to-end instance budget has
+    // expired. CASH then finishes without starting another SPB window.
+    virtual bool should_stop(double cash_cpu_time) = 0;
+
+    // Run SPB and return one privately verified, original-WCNF upper bound.
+    // Returning false means no candidate was found in this window.
+    virtual bool find_upper_bound(const std::vector<int>& partial_assignment,
+                                  const Int& current_upper_bound,
+                                  Int& candidate_upper_bound) = 0;
+
+    virtual void on_upper_bound_result(HybridBoundResult) {}
+};
 
 Int evalGoal(const vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls, vec<bool>& model, Minisat::vec<Lit>& soft_unsat);
 
@@ -117,7 +149,8 @@ class MsSolver final : public PbSolver {
         , last_soft_added_to_sat(INT_MAX)
         , max_input_lit(lit_Undef)
         , termCallbackState(nullptr)
-        , termCallback(nullptr) {}
+        , termCallback(nullptr)
+        , hybrid_callback(nullptr) {}
 
     ~MsSolver() {
         for (int i = 0; i < orig_soft_cls.size(); i++) delete orig_soft_cls[i].snd;
@@ -146,6 +179,7 @@ class MsSolver final : public PbSolver {
     Lit                 max_input_lit;  // IMPAMIR: the maximal value of literals created during reading an instance
     void *              termCallbackState;
     int               (*termCallback)(void *state);
+    HybridMaxSatCallback *hybrid_callback;
 #ifdef USE_SCIP
     ScipSolver          scip_solver;
 #endif
@@ -204,6 +238,7 @@ class MsSolver final : public PbSolver {
     void    maxsat_solve(solve_Command cmd = sc_Minimize); 
     void    preprocess_soft_cls(Minisat::vec<Lit>& assump_ps, vec<Int>& assump_Cs, const Int& max_assump_Cs, 
                                            IntLitQueue& delayed_assump, Int& delayed_assump_sum);
+    void    set_hybrid_callback(HybridMaxSatCallback *callback) { hybrid_callback = callback; }
 } ;
 
 #endif

@@ -145,7 +145,7 @@ class LSworker
 	void update_clause_weights();
 	void unsat(int clause);
 	void sat(int clause);
-	void init(vector<int> &init_solution);
+	void init(vector<int> &init_solution, bool preserve_clause_weights = false);
 	void flip(int flipvar);
 	void update_goodvarstack1(int flipvar);
 	void update_goodvarstack2(int flipvar);
@@ -164,7 +164,8 @@ class LSworker
 	void free_memory();
 
 	Solution local_search_with_decimation();
-	void local_search_with_init_solution(vector<int> &init_solution,int basic_cost = 0);
+	void local_search_with_init_solution(vector<int> &init_solution,
+		int basic_cost = 0, bool preserve_clause_weights = false);
 
 	int get_best_cost(){ return opt_unsat_weight; }
 	int verify_solution(const vector<int> &assignment){ return inst.verify_solution(assignment); }

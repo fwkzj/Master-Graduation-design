@@ -6,10 +6,27 @@
 #include "Crossover/crossover.h"
 #include <assert.h>
 
-void LSworker::init(vector<int> &init_solution){
+void LSworker::init(vector<int> &init_solution, bool preserve_clause_weights){
     soft_large_weight_clauses_count = 0;
 
-    if (1 == inst.problem_weighted) // weighted partial MaxSAT
+    if (preserve_clause_weights)
+    {
+        // Do not carry an assignment or a search frontier across coordinator
+        // windows.  Only retain the learned clause weights, and rebuild the
+        // soft-weight auxiliary stack that is derived from them.
+        for (int c = 0; c < inst.num_clauses; c++)
+        {
+            already_in_soft_large_weight_stack[c] = 0;
+            if (inst.num_hclauses == 0 &&
+                inst.org_clause_weight[c] != inst.top_clause_weight &&
+                clause_weight[c] > s_inc)
+            {
+                already_in_soft_large_weight_stack[c] = 1;
+                soft_large_weight_clauses[soft_large_weight_clauses_count++] = c;
+            }
+        }
+    }
+    else if (1 == inst.problem_weighted) // weighted partial MaxSAT
     {
         if (0 != inst.num_hclauses)
         {
@@ -684,6 +701,5 @@ void LSworker::soft_increase_weights_not_partial()
     }
     return;
 }
-
 
 
