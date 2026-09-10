@@ -49,3 +49,12 @@
 - 发现并修复 CASH 的空软子句单位边界：空软子句的固定代价原先未参与 `goal_gcd`，会破坏“原始 WCNF 代价 = 内部值 × `goal_gcd`”。现在固定代价也参与公约数计算并同样缩放；后续 UB 转换测试必须覆盖该输入。
 - SPB 的空子句语义也已封闭：空软子句从局部搜索子句栈移除并计为 `fixed_soft_cost`，所有可行解和约简代价都会加回该常数；空硬子句标为不可行，SPB 接口直接返回无可行解。这样不会在“从空子句选翻转变量”处死循环。
 - 顶层 CMake 将 COMiniSatPS、CASH、SPB 与 `HybridMaxSAT` 按依赖顺序接入；CASH 静态库不再包含命令行 `Main.cc`，而包含其公共选项/输出实现 `Main_utils.cc`。混合运行器关闭 CASH 的标准模型输出，避免将数值外部 UB 与未更新的 CASH 模型混写；最终模型若需要输出，应由结果层取 SPB 私有证书或 CASH 自己的模型。
+
+## 2026-09-10 仓库结构盘点
+
+- `D:\硕士毕设` 本身是 Git 工作树；此前的 `.upload_stage_20260909` 是已忽略的临时镜像，不属于项目内容。
+- 顶层 CMake 直接引用 `CASHWMaxSAT-DisjCad-S6`、`SPBMAXSAT2-master/SPBMAXSAT2-master` 和 `HybridMaxSAT`，移动算法目录会增加未经服务器构建验证的风险，因此本次保持这些路径稳定。
+- 根目录散落开题报告、精读清单和旧 planning-with-files 副本；活动规划实际位于 `.planning/2026-09-09-thesis-hybrid-wpms`。
+- `.analysis_tmp` 包含报告转换、渲染和检查的中间产物，适合迁入显式的 `artifacts/report-analysis`，避免隐藏目录与活动配置混淆。
+- 旧 `启动claude.txt` 含有明文 API 凭据。当前工作树必须改为无凭据示例；旧凭据已存在于 Git 历史，需在对应服务端撤销，历史清理应作为单独、明确授权的操作处理。
+- `docs/literature/papers/iterative and core-guided.pdf` 与 `maxsat_overview.pdf` 的 SHA-256 完全相同；活动论文目录保留前者，后者移入历史重复文件归档。

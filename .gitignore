@@ -1,0 +1,30 @@
+# Local staging and editor state
+.upload_stage_*/
+.vscode/
+.idea/
+.env
+.env.*
+!.env.example
+docs/project/*.local.ps1
+
+# Out-of-source CMake builds
+/build/
+/cmake-build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/CTestTestfile.cmake
+**/Makefile
+
+# Generated binaries and runtime output
+*.o
+*.obj
+*.a
+*.lib
+*.exe
+HybridMaxSAT/runs/
+HybridMaxSAT/work/
+
+# OS noise
+.DS_Store
+Thumbs.db

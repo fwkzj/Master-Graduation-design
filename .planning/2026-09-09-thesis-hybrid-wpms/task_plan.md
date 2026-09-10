@@ -162,7 +162,18 @@
 
 ## Next Step
 
-建立论文题目、摘要和相关工作文献矩阵的初稿，同时为 Phase 2 设计最小 WCNF 回归测试集。
+服务器恢复后，在 S122 构建并执行 Parser Gate；通过前不进入混合调度与 50 实例调试。
+
+## Repository Organization Maintenance (2026-09-10)
+
+**Status:** complete
+
+- [x] 保持三套算法源码目录和顶层 CMake 路径稳定。
+- [x] 将开题、中期和文献材料归入统一的 `docs/` 层级。
+- [x] 将报告分析中间产物从隐藏目录迁入 `artifacts/`。
+- [x] 归档根目录重复的旧规划文件，保留 `.planning/` 为唯一活动规划源。
+- [x] 更新 README、执行指南及所有受影响的路径引用。
+- [x] 核对 Git 状态、文件清单和重命名结果。
 
 ## Decisions Made
 
@@ -177,3 +188,4 @@
 | Error | Resolution |
 |---|---|
 | SPB 在 CASH 样例上报告 0，而 CASH 证明 1611 | 定位为解析/硬子句语义缺陷，纳入 Phase 2 Gate |
+| 本机没有 `pdftotext`，无法读取重复 PDF 的标题页 | 不安装额外工具；按哈希确认内容相同，保留描述明确的文件名并将通用命名副本归档 |

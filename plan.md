@@ -92,4 +92,4 @@ HybridMaxSAT/
 
 ## 8. 当前状态
 
-服务器 S122 当前 SSH 超时。文件在本地 Git 镜像中编写并推送 GitHub；连接恢复后，同步到 `/home/fwkzj/HybridAlgorithm`，在服务器执行构建与实验。
+服务器 S122 当前 SSH 超时。文件在本地 Git 工作树 `D:\硕士毕设` 中编写并推送 GitHub；连接恢复后，同步到 `/home/fwkzj/HybridAlgorithm`，在服务器执行构建与实验。

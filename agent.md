@@ -2,13 +2,13 @@
 
 ## 当前工作位置
 
-服务器 S122（`fwkzj@222.20.99.55:22`）是项目的长期运行环境，目标目录为 `/home/fwkzj/HybridAlgorithm`。目前 SSH 连接超时；经用户授权，服务器恢复前可在本地镜像仓库 `D:\硕士毕设\.upload_stage_20260909\repo` 编写规划、代码与文档，并将每个可审查阶段推送至 GitHub：`git@github.com:fwkzj/Master-Graduation-design.git`。
+服务器 S122（`fwkzj@222.20.99.55:22`）是项目的长期运行环境，目标目录为 `/home/fwkzj/HybridAlgorithm`。目前 SSH 连接超时；经用户授权，服务器恢复前可在本地 Git 工作树 `D:\硕士毕设` 编写规划、代码与文档，并将每个可审查阶段推送至 GitHub：`git@github.com:fwkzj/Master-Graduation-design.git`。
 
 服务器恢复后，应先检查 Git 状态，再将已审查的提交同步到 `/home/fwkzj/HybridAlgorithm`，随后在服务器构建和运行。公共数据只读，路径为 `/data/dataset/Maxsat/Complete/`；不得修改其中的任何文件。
 
 ## 本地禁止运行
 
-本地镜像只用于编写、审阅、版本控制和推送。**禁止在本地构建、编译、运行测试、解析基准、运行 CASH/SPB 或执行任何实验。**所有 Parser Gate 验证、单元测试、构建、求解和批量实验都必须等待 S122 恢复连接后，在服务器 `/home/fwkzj/HybridAlgorithm` 中执行并记录。
+本地工作树只用于编写、审阅、版本控制和推送。**禁止在本地构建、编译、运行测试、解析基准、运行 CASH/SPB 或执行任何实验。**所有 Parser Gate 验证、单元测试、构建、求解和批量实验都必须等待 S122 恢复连接后，在服务器 `/home/fwkzj/HybridAlgorithm` 中执行并记录。
 
 本地文件先集中完成一个可审查阶段，再统一提交和推送 GitHub；不要为每一条小型记录单独上传。
 

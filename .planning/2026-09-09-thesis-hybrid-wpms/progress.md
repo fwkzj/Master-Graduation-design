@@ -24,3 +24,18 @@
 1. 静态审阅 SPB 的持久接口、Parser Gate 及其构建配置；不在本地编译或运行。
 2. 为 CASH UB 单位转换/拒绝规则（含空软子句）补充服务器测试，并审阅顶层 CMake 集成。
 3. 服务器恢复后同步并执行 Parser Gate、接口测试、构建检查和 50 实例调试。
+
+## 2026-09-10 仓库整理
+
+- 已盘点顶层文件、目录规模、活动规划位置和构建路径依赖。
+- 已确定保持算法源码目录稳定，将论文材料集中到 `docs/`，将报告分析产物集中到 `artifacts/`，并归档根目录旧规划副本。
+- 已将开题提交稿迁入 `docs/reports/proposal/submissions/`，开题和中期模板分别迁入 `docs/reports/templates/proposal/` 与 `docs/reports/templates/midterm/`。
+- 已将论文文献迁入 `docs/literature/papers/`，精读清单迁入 `docs/literature/reading-list/`。
+- 已将 `.analysis_tmp` 迁入 `artifacts/report-analysis/`，并将根目录旧 planning-with-files 副本归档到 `docs/archive/legacy-planning/`。
+- 路径扫描发现旧启动文件包含明文 API 凭据；正在改为无凭据环境配置示例，并记录撤销旧凭据的要求。
+- 文档哈希检查发现一组重复论文 PDF；采用保留原文件并归档通用命名副本的方式处理。
+- 已将含凭据的旧启动文件改为 `docs/project/claude-env.example.ps1`，当前版本只含占位符。
+- 已移除迁移后留下的空 `报告要求` 目录，并补充根目录、文档目录和中间产物说明。
+- 已将旧上传临时镜像移出项目根目录，避免嵌套仓库干扰；算法源码、文档、分析产物和活动规划层级均已核对。
+- 已完成当前工作树凭据扫描、Git 重命名检查和暂存内容检查；未发现当前版本中的明文令牌或未纳入版本控制的文件。
+- 仓库整理阶段完成，等待提交并同步到 GitHub。本地未编译、未运行测试或实验，符合 `agent.md` 的服务器执行约束。
