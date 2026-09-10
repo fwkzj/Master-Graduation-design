@@ -189,3 +189,4 @@
 |---|---|
 | SPB 在 CASH 样例上报告 0，而 CASH 证明 1611 | 定位为解析/硬子句语义缺陷，纳入 Phase 2 Gate |
 | 本机没有 `pdftotext`，无法读取重复 PDF 的标题页 | 不安装额外工具；按哈希确认内容相同，保留描述明确的文件名并将通用命名副本归档 |
+| PowerShell 首次误解析未加引号的 Git tree-ish | 将 `HEAD^{tree}` 和 `origin/main^{tree}` 作为带引号参数重新执行，目录树哈希验证通过 |
