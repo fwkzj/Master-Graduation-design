@@ -56,6 +56,14 @@ int      opt_verbosity = 1;
 bool     opt_model_out = true;
 bool     opt_bin_model_out = false;
 bool     opt_satisfiable_out = true;
+// Set by an embedder that drives MsSolver in-process instead of through CASH's
+// standalone CLI. The CLI ends a solved run by printing the answer and calling
+// std::_Exit, which is uncatchable and therefore also skips whatever the
+// embedder still has to do (here: writing the experiment record). With this
+// set, CASH returns from the solve call instead of exiting underneath the
+// embedder, and publishes opt_scip_proved_optimal so the embedder can still
+// tell a SCIP proof apart from one of CASH's own.
+bool     opt_embedded_runner = false;
 bool     opt_try       = false;     // (hidden option -- if set, then "try" to parse, but don't output "s UNKNOWN" if you fail, instead exit with error code 5)
 int      opt_output_top    = -1;
 

@@ -28,3 +28,13 @@ HybridMaxSAT/work/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Batch runs, caches and patch leftovers (see agent.md)
+/runs/
+HybridMaxSAT/runs/
+__pycache__/
+*.pyc
+*.orig
+*.rej
+.claude/settings.local.json
+/CASHWMaxSAT-DisjCad-S6/code/scipoptsuite-8.1.0/

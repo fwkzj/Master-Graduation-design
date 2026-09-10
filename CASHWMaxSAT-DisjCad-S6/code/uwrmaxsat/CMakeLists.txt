@@ -27,6 +27,8 @@ set(MINISATP_SOVERSION ${MINISATP_SOMAJOR})
 # Compile flags:
 
 add_definitions(-include Global.h -include Main.h -D_FILE_OFFSET_BITS=64)
+add_definitions(-DCADICAL -DUSE_SCIP -DNDEBUG -D__STDC_LIMIT_MACROS)
+add_compile_options(-pthread)
 
 # We require C++11 or higher.
 
@@ -39,9 +41,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 find_library(GMP_LIBRARY gmp)
 #include_directories(${GMP_INCLUDE_DIR})
 
-include_directories(${minisat_SOURCE_DIR})
+include_directories(${minisat_SOURCE_DIR} ${minisat_SOURCE_DIR}/minisat)
 include_directories(${minisatp_SOURCE_DIR})
 include_directories(${minisatp_SOURCE_DIR}/ADTs)
+include_directories(${cadical_SOURCE_DIR})
+include_directories(${scip_SOURCE_DIR})
+include_directories(${scip_BUILD_DIR}/scip)
 
 #--------------------------------------------------------------------------------------------------
 # Build Targets:
@@ -65,30 +70,18 @@ set(MINISATP_LIB_SOURCES
     Pre_separator.cc
     MsSolver.cc
     SatSolver.cc
-    System.cc)
+    ScipSolver.cc
+    System.cc
+    ipamir.cc)
 
 add_library(minisatp-lib-static STATIC ${MINISATP_LIB_SOURCES})
-add_library(minisatp-lib-shared SHARED ${MINISATP_LIB_SOURCES})
 
-target_link_libraries(minisatp-lib-shared minisat-lib-shared ${GMP_LIBRARY})
-target_link_libraries(minisatp-lib-static minisat-lib-static ${GMP_LIBRARY})
+target_link_libraries(minisatp-lib-static minisat-lib-static ${GMP_LIBRARY} ${cadical_LIBRARY} ${scip_LIBRARY} ${soplex_LIBRARY} ${z_LIBRARY} pthread)
 
 set_target_properties(minisatp-lib-static PROPERTIES OUTPUT_NAME "uwrmaxsat")
-set_target_properties(minisatp-lib-shared 
-  PROPERTIES
-    OUTPUT_NAME "uwrmaxsat" 
-    VERSION ${MINISATP_VERSION}
-    SOVERSION ${MINISATP_SOVERSION})
 
 add_executable(uwrmaxsat Main.cc)
-
 target_link_libraries(uwrmaxsat minisatp-lib-static)
-
-if(STATIC_BINARIES)
-  target_link_libraries(uwrmaxsat minisatp-lib-static)
-else()
-  target_link_libraries(uwrmaxsat minisatp-lib-shared)
-endif()
 
 
 #--------------------------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 #include "BasicStruct/instance.h"
 
+#include <cstdlib>
 #include <stdexcept>
 
 Instance::Instance()
@@ -619,6 +620,69 @@ ReducedInstance Instance::reduce(const vector<int> &assignment) const
     return result;
 }
 
+void Instance::infer_header_without_p_line(const char *filename,
+                                           int &out_num_vars,
+                                           int &out_num_clauses,
+                                           long long &out_top_weight)
+{
+    ifstream file(filename);
+    if (!file)
+        throw runtime_error(string("cannot reopen WCNF file: ") + filename);
+
+    int max_var = 0;
+    long long clause_count = 0;
+    long long max_soft_weight = 0;
+
+    string line;
+    while (getline(file, line))
+    {
+        istringstream input(line);
+        string tag;
+        // Standardized instances spell their metadata block as "c{", "c}" and
+        // "c-----" rather than a bare "c", so match the comment prefix instead
+        // of the exact token. No clause can start with 'c' or 'p': a clause
+        // line begins with a digit, a '-', or the 'h' hard-clause marker.
+        if (!(input >> tag) || tag[0] == 'c' || tag[0] == 'p')
+            continue;
+
+        ++clause_count;
+
+        if (tag != "h")
+        {
+            long long weight = 0;
+            size_t consumed = 0;
+            try
+            {
+                weight = stoll(tag, &consumed);
+            }
+            catch (const exception &)
+            {
+                throw runtime_error("invalid WCNF clause weight");
+            }
+            if (consumed != tag.size() || weight <= 0)
+                throw runtime_error("invalid soft-clause weight");
+            if (weight > max_soft_weight)
+                max_soft_weight = weight;
+        }
+
+        long long literal_value = 0;
+        while (input >> literal_value)
+        {
+            if (literal_value == 0)
+                break;
+            const int variable = abs(static_cast<int>(literal_value));
+            if (variable > max_var)
+                max_var = variable;
+        }
+    }
+
+    out_num_vars = max_var;
+    out_num_clauses = static_cast<int>(clause_count);
+    // Strictly above every soft weight, so the weight-based classification in
+    // the clause pass marks exactly the 'h' clauses as hard.
+    out_top_weight = max_soft_weight + 1;
+}
+
 void Instance::build_instance(const char *filename)
 {
     ifstream header_file(filename);
@@ -633,7 +697,7 @@ void Instance::build_instance(const char *filename)
     {
         istringstream input(line);
         string tag;
-        if (!(input >> tag) || tag == "c")
+        if (!(input >> tag) || tag[0] == 'c')
             continue;
 
         if (tag != "p")
@@ -648,7 +712,14 @@ void Instance::build_instance(const char *filename)
     }
 
     if (!header_found)
-        throw runtime_error("missing WCNF header");
+    {
+        // Standardized instances have no "p wcnf" line; recover the same
+        // information from the clause block itself.
+        long long inferred_top_weight = 1;
+        infer_header_without_p_line(filename, num_vars, declared_clauses,
+                                    inferred_top_weight);
+        top_clause_weight = inferred_top_weight;
+    }
 
     num_clauses = declared_clauses;
     allocate_memory();
@@ -689,7 +760,11 @@ void Instance::build_instance(const char *filename)
     {
         istringstream input(line);
         string tag;
-        if (!(input >> tag) || tag == "c" || tag == "p")
+        // Standardized instances spell their metadata block as "c{", "c}" and
+        // "c-----" rather than a bare "c", so match the comment prefix instead
+        // of the exact token. No clause can start with 'c' or 'p': a clause
+        // line begins with a digit, a '-', or the 'h' hard-clause marker.
+        if (!(input >> tag) || tag[0] == 'c' || tag[0] == 'p')
             continue;
 
         ++declared_clause_count;

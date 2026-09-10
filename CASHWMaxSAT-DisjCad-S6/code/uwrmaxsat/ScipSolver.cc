@@ -35,6 +35,16 @@
 
 std::atomic<char> opt_finder(OPT_NONE);
 
+extern bool opt_embedded_runner;
+
+// SCIP established that `solver->best_goalvalue` is optimal. The standalone CLI
+// signals this by exiting 30 without unwinding; an embedder cannot be told that
+// way, so the fact is published here for it to read once the solve call has
+// returned. Ordinary (non-embedded) runs never set it. Atomic because the write
+// happens on the SCIP worker while the solver's own thread may be reading it to
+// decide whether to stop early.
+std::atomic<bool> opt_scip_proved_optimal(false);
+
 void scip_interrupt_solve(ScipSolver &scip_solver)
 {
     if (scip_solver.scip != nullptr) {
@@ -157,7 +167,12 @@ lbool scip_solve_async(ScipSolver *scip_solver, MsSolver *solver)
             if (!solver->ipamir_used && opt_finder.compare_exchange_strong(test, OPT_SCIP) ) { 
                 if (opt_verbosity > 0) reportf("SCIP result: UNSATISFIABLE\n");
                 printf("s UNSATISFIABLE\n"); fflush(stdout);
-                std::_Exit(20);
+                if (!opt_embedded_runner) std::_Exit(20);
+                // Embedded: report the infeasibility through the return value
+                // and let the caller unwind, so the run still ends through the
+                // path that writes a record. Infeasible is a real answer, not
+                // a crash, and the embedder has to account for it.
+                goto clean_and_return;
             }
         }
     } else {
@@ -214,7 +229,7 @@ lbool scip_solve_async(ScipSolver *scip_solver, MsSolver *solver)
                     }
                 }
             }
-            if (!scip_solver->interrupted && lbound != INT64_MIN &&  try_count > 0 && double(ubound - lbound)/ubound < 0.10 && ubound - lbound < bound_gap) {
+            if (!opt_embedded_runner && !scip_solver->interrupted && lbound != INT64_MIN &&  try_count > 0 && double(ubound - lbound)/ubound < 0.10 && ubound - lbound < bound_gap) {
                 try_count--; opt_scip_cpu += opt_scip_cpu_add;
                 bound_gap = ubound - lbound;
                 MY_SCIP_CALL(SCIPsetRealParam(scip_solver->scip, "limits/time", opt_scip_cpu));
@@ -293,6 +308,21 @@ lbool scip_solve_async(ScipSolver *scip_solver, MsSolver *solver)
             }
             if (!solver->ipamir_used) {
                 outputResult(*solver, true);
+                if (opt_embedded_runner) {
+                    // CASH's CLI reports "solved" by exiting 30. That exit runs
+                    // on the async SCIP worker, so it takes the whole process
+                    // down without unwinding: no destructors, no atexit, and
+                    // the embedder never regains control to write its record.
+                    // It fires exactly on the instances where CASH proves the
+                    // optimum, which is the metric this experiment measures,
+                    // so those runs would silently vanish. Publish the fact and
+                    // return instead; found_opt is already l_True here, and
+                    // best_goalvalue/best_model were set above, so the caller
+                    // can unwind and stop through the normal path with its
+                    // bounds intact.
+                    opt_scip_proved_optimal.store(true);
+                    goto clean_and_return;
+                }
 		        std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 //MY_SCIP_CALL(SCIPfree(&scip_solver->scip));
                 std::_Exit(30);

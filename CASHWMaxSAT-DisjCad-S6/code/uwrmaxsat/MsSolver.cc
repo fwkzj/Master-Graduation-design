@@ -941,6 +941,15 @@ void MsSolver::maxsat_solve(solve_Command cmd)
         }
       }
 #endif
+      // Install the scheduling terminator here rather than inside the callback
+      // block above: the SCIP-start block between them calls
+      // sat_solver.limitTime(), which connects CaDiCaL's own alarm terminator
+      // and implicitly disconnects ours. Doing it last makes it the terminator
+      // that is actually in force when the SAT call runs.
+      if (hybrid_callback != nullptr) {
+          int (*terminator)(void *) = hybrid_callback->cash_terminator();
+          if (terminator != nullptr) sat_solver.setTermCallback(nullptr, terminator);
+      }
       sat_conflicts.clear();
       if (use_base_assump) for (int i = 0; i < base_assump.size(); i++) assump_ps.push(base_assump[i]);
       if (opt_minimization == 1 && opt_to_bin_search && opt_unsat_conflicts >= 100000 &&

@@ -1,0 +1,8 @@
+c gate-3 synthetic: every assignment costs exactly 10, so a mis-bridged UB
+c cannot hide behind search. All soft weights are equal (5) and there is no
+c hard clause: each complementary pair forces exactly one unsat soft clause.
+p wcnf 2 4 100
+5 1 0
+5 -1 0
+5 2 0
+5 -2 0
