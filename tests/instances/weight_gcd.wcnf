@@ -1,0 +1,9 @@
+c gate-3 synthetic: soft weights 6/9/12/15 all share gcd 3, so any scaling of
+c the weight vector shows up immediately in the reported cost. Optimum is 6,
+c reached by x1=1, x2=0, x3=1 (only `-x1` is falsified); dropping x1 costs 15
+c instead, so the bridge has to carry the real model across, not just a value.
+p wcnf 3 4 100
+6 -1 0
+9 1 2 0
+12 -2 -3 0
+15 3 0

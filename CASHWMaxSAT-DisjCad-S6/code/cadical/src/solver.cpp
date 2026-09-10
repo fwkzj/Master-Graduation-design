@@ -975,6 +975,14 @@ int64_t Solver::irredundant () const {
   return res;
 }
 
+int64_t Solver::conflicts () const {
+  TRACE ("conflicts");
+  REQUIRE_VALID_STATE ();
+  int64_t res = internal->stats.conflicts;
+  LOG_API_CALL_RETURNS ("conflicts", res);
+  return res;
+}
+
 /*------------------------------------------------------------------------*/
 
 void Solver::freeze (int lit) {

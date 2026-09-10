@@ -44,6 +44,21 @@ class HybridMaxSatCallback {
   public:
     virtual ~HybridMaxSatCallback() {}
 
+    // CaDiCaL terminator that bounds a single SAT call, or null to let calls
+    // run to completion. Returning non-zero makes the call return early.
+    //
+    // CaDiCaL holds at most one terminator: connecting a new one implicitly
+    // disconnects the previous. Both `SimpSolver::limitTime` (which connects
+    // its own alarm terminator) and `setTermCallback` therefore clobber
+    // whatever was connected, which is why the callback is re-installed right
+    // before every SAT call rather than once at setup.
+    //
+    // This exists because CASH cannot otherwise be interrupted. Without it a
+    // single hard SAT call runs for the entire budget, the coordinator is never
+    // consulted again, and every configuration silently degenerates into
+    // "CASH only".
+    virtual int (*cash_terminator())(void *) { return nullptr; }
+
     // Return true only when a complete 15-second CASH window has elapsed.
     virtual bool should_run(double cash_cpu_time) = 0;
 

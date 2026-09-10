@@ -87,6 +87,17 @@ public:
 private:
     void allocate_memory();
     void free_memory();
+
+    // Standardized MaxSAT instances (the MSE*W collections) carry their
+    // dimensions in a leading "c { ... }" metadata block instead of a
+    // "p wcnf" line. Scan such a file once to recover the equivalent of the
+    // header: the largest variable index, the number of clause lines, and a
+    // top weight strictly above every soft weight so that clause
+    // classification keeps agreeing with the explicit 'h' marker.
+    void infer_header_without_p_line(const char *filename,
+                                     int &out_num_vars,
+                                     int &out_num_clauses,
+                                     long long &out_top_weight);
 };
 
 struct ReducedInstance

@@ -1,0 +1,10 @@
+# Stage 0 gate instances. Paths are relative to the repository root, so this
+# manifest is run with `--dataset-root .` rather than the MSE dataset root.
+#
+# The first three are the solver's own unit-test instances; the last two are the
+# Gate 3 synthetics (fixed cost, weight gcd 3) whose optima are known by hand.
+build/SPBMAXSAT2-master/SPBMAXSAT2-master/standard_weighted.wcnf
+build/SPBMAXSAT2-master/SPBMAXSAT2-master/persistent_interface.wcnf
+build/SPBMAXSAT2-master/SPBMAXSAT2-master/hard_keyword.wcnf
+tests/instances/fixed_cost.wcnf
+tests/instances/weight_gcd.wcnf

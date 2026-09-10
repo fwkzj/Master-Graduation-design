@@ -27,6 +27,13 @@ public:
     void set_settings(const Settings &settings);
     const Settings &get_settings() const;
 
+    // Number of variables in the original WCNF, i.e. the length an assignment
+    // vector must have (minus the unused element 0). An embedder that keeps its
+    // own copy of the instance has to size its vectors by this, not by its own
+    // variable count: the two differ as soon as the embedder adds variables of
+    // its own (CASH's relaxation and sorter variables).
+    int num_vars() const { return backend_.originInstance.num_vars; }
+
     // Run one local-search worker with a decimation-generated initial state.
     Solution solve();
 

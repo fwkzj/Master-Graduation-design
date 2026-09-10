@@ -28,7 +28,7 @@ set(MINISAT_SOVERSION ${MINISAT_SOMAJOR})
 
 find_package(ZLIB)
 include_directories(${ZLIB_INCLUDE_DIR})
-include_directories(${minisat_SOURCE_DIR})
+include_directories(${minisat_SOURCE_DIR} ${minisat_SOURCE_DIR}/minisat)
 
 #--------------------------------------------------------------------------------------------------
 # Compile flags:
