@@ -2,15 +2,84 @@
 
 ## 当前工作位置
 
-服务器 S122（`fwkzj@222.20.99.55:22`）是项目的长期运行环境，目标目录为 `/home/fwkzj/HybridAlgorithm`。目前 SSH 连接超时；经用户授权，服务器恢复前可在本地 Git 工作树 `D:\硕士毕设` 编写规划、代码与文档，并将每个可审查阶段推送至 GitHub：`git@github.com:fwkzj/Master-Graduation-design.git`。
+服务器 S122（`fwkzj@222.20.99.55:22`）是项目的长期运行环境，目标目录为 `/home/fwkzj/HybridAlgorithm`。截至 2026-09-10，SSH 连接已恢复正常（主机名 `HCCS-122`，256 核），批量模式免密登录可用，`build/`、`manifests/`、`runs/` 均已就位。
 
-服务器恢复后，应先检查 Git 状态，再将已审查的提交同步到 `/home/fwkzj/HybridAlgorithm`，随后在服务器构建和运行。公共数据只读，路径为 `/data/dataset/Maxsat/Complete/`；不得修改其中的任何文件。
+本地 Git 工作树为 `D:\硕士毕设`；GitHub 远端为 `git@github.com:fwkzj/Master-Graduation-design.git`（服务器侧 SSH 别名为 `git@github.com-hybridalgorithm:fwkzj/Master-Graduation-design.git`，指向同一仓库）。
+
+开发期在本地编写规划、代码与文档，在服务器构建和运行；两侧如何保持一致见下文"三方协同规则"。公共数据只读，路径为 `/data/dataset/Maxsat/Complete/`；不得修改其中的任何文件。
 
 ## 本地禁止运行
 
-本地工作树只用于编写、审阅、版本控制和推送。**禁止在本地构建、编译、运行测试、解析基准、运行 CASH/SPB 或执行任何实验。**所有 Parser Gate 验证、单元测试、构建、求解和批量实验都必须等待 S122 恢复连接后，在服务器 `/home/fwkzj/HybridAlgorithm` 中执行并记录。
+本地工作树只用于编写、审阅、版本控制和推送。**禁止在本地构建、编译、运行测试、解析基准、运行 CASH/SPB 或执行任何实验。**所有 Parser Gate 验证、单元测试、构建、求解和批量实验都必须在服务器 `/home/fwkzj/HybridAlgorithm` 中执行并记录。
 
 本地文件先集中完成一个可审查阶段，再统一提交和推送 GitHub；不要为每一条小型记录单独上传。
+
+## 三方协同规则
+
+本地、GitHub、服务器三处必须始终是同一条历史。以下是保证这一点的规则。
+
+### 唯一真相源
+
+GitHub `origin/main` 是代码的唯一真相源。本地 `D:\硕士毕设` 与服务器 `/home/fwkzj/HybridAlgorithm` 都只是它的工作副本，不允许任一侧长期持有未推送的提交。
+
+**地点不是分支。** 不要建立 `local`、`server` 这类按位置划分的长期分支——它们必然长期分叉，最终无人敢合。分支只用来承载"尚未完成的某项工作"，完成后收回 `main` 并删除。
+
+### 同步周期
+
+任何一侧开始工作前先 `git pull --rebase`；结束工作后立刻 `git commit` 并 `git push`。同步粒度是"一个可审查阶段"，不要积压多日再推。
+
+### 两侧分工
+
+- 本地：编辑、审阅、版本控制、推送。
+- 服务器：构建、Parser Gate 验证、单元测试、批量实验，产出 `runs/`。也可以在服务器上直接改代码，但改完必须立即提交并推送，不得让修改在服务器上裸奔。
+
+同一文件原则上由一侧改完推送后，另一侧 `pull --rebase` 再动。
+
+### 批次运行时服务器冻结
+
+`scripts/run_batch.py` 在服务器上运行期间，**禁止在 `/home/fwkzj/HybridAlgorithm` 执行任何会改动工作树的 git 命令**（`commit`、`checkout`、`switch`、`pull`、`merge`、`rebase`、`stash`）。工作树一旦变动，正在跑的批次就无法复现，其全部结果作废。需要同步就等批次结束。
+
+判断是否空闲：
+
+```bash
+pgrep -af run_batch.py     # 无输出表示空闲
+pgrep -c  hybridmaxsat     # 应输出 0
+```
+
+只读命令（`git status`、`git log`、`git diff`）在批次运行期间仍可安全执行。
+
+### 实验必须绑定提交
+
+每个批次的 `meta.json` 记录 `git rev-parse HEAD` 与二进制 sha1。**工作树脏时产出的结果不采信**，因为在别处无法复现同一份源码。跑批次前必须满足：
+
+```bash
+cd /home/fwkzj/HybridAlgorithm
+git status --porcelain    # 必须为空
+git rev-parse HEAD        # 记入 meta.json
+```
+
+### 服务器侧必需的一次性配置
+
+```bash
+git config core.filemode false
+```
+
+CaDiCaL 的 `configure` 会把 17 个脚本的权限位从 100644 改成 100755，内容零改动，却让服务器 `git status` 常驻 17 条噪声。
+
+### 忽略规则
+
+`.gitignore` 已补充仓库根目录 `/runs/`、`__pycache__/`、`*.pyc`、`*.orig`、`*.rej`、`.claude/settings.local.json` 与第三方源码 `scipoptsuite-8.1.0/`。其中 `.claude/settings.local.json` 为各机私有配置，已从版本控制中移除。
+
+必须版本化的实验资产（不得忽略）：`scripts/run_batch.py`、`manifests/`、`tests/`、`experiment.md`、`docs/experiments/`。
+
+### 禁止的同步方式
+
+- **用 `scp` 手工覆盖对端文件。** 这会让文件一致而 git 历史分叉。此前本地与服务器的实现文件虽然逐字节相同，但那是手工拷贝的结果，双方 `git status` 都长期为脏，谁也无法判断哪份才是权威。所有同步一律走 git。
+- 在服务器上 `git add -A`，把 `scipoptsuite-8.1.0/`、`runs/`、`*.orig` 一并提交。
+
+### 冲突处理
+
+因为本地禁运行、服务器要求改完即推，两端同时改同一文件的概率很低。真出现冲突时，在**改动所在的那一侧**用 `git pull --rebase` 解决；服务器侧优先等批次空闲再处理。
 
 ## 研究目标
 
