@@ -304,9 +304,17 @@ bool HybridCoordinator::find_upper_bound(
         std::min<double>(schedule_.spb_window_seconds, remaining));
 
     const double spb_call_start = wall_now();
-    // CASH own lower bound is already achievable: hand it to SPB as the target
-    // so the search can stop the moment it produces an optimal model.
-    const long long target_cost = to_log_value(cash_lower_bound);
+    // A1: aim SPB at the value where CASH would harden its next soft clause, so
+    // a successful round changes the exact search (more units, stronger
+    // propagation) instead of only moving a number. If that threshold is
+    // already behind the bound, fall back to CASH own lower bound, which is the
+    // value at which the returned model would be optimal outright.
+    long long target_cost = to_log_value(cash_lower_bound);
+    if (event.harden_gap_to_next > 0 && event.cash_ub_before_spb > 0) {
+        const long long threshold =
+            event.cash_ub_before_spb - event.harden_gap_to_next;
+        if (threshold > 0) target_cost = threshold;
+    }
     const Solution result = spb_solver_.improve_with_persistent_weights(
         *initial_assignment, target_cost);
     const double spb_call_end = wall_now();
