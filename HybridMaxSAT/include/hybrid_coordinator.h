@@ -95,6 +95,12 @@ struct RoundEvent {
     // round started. Negative means the armed deadline had already expired, so
     // every SAT call of the window was aborted on entry.
     double cash_deadline_in = 0.0;
+    // Hardening state when this round started: how many soft clauses have been
+    // hardened already, how far the UB still is from hardening the next one,
+    // and the goal interval that decides it.
+    int harden_count = 0;
+    long long harden_gap_to_next = -1;
+    long long harden_goal_interval = -1;
     std::string schedule_reason;
     double next_handoff_in = 0.0;
     long long cash_lb_before_spb = -1;
@@ -136,7 +142,8 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     // CASH reports its own bounds at every scheduling point, so the run keeps
     // an LB/UB trajectory even across the windows in which no handoff happens.
     void on_scheduling_point(const Int &cash_lower_bound,
-                             const Int &cash_upper_bound) override;
+                             const Int &cash_upper_bound,
+                             const CashHardeningState &hardening) override;
 
     // Write each round to `path` as soon as it completes, instead of holding
     // every event until the run ends. A run that stops on the end-to-end
@@ -182,6 +189,8 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     bool stopped_ = false;
     // Why the schedule moved where it did; copied into the round record.
     std::string last_schedule_reason_;
+    // Latest hardening snapshot, reported by CASH at every scheduling point.
+    CashHardeningState pending_hardening_;
     // Throttle for the progress records; one every few seconds is plenty to
     // show whether CASH is closing the gap or standing still.
     double last_progress_wall_ = -1.0e18;

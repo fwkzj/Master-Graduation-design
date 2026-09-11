@@ -878,7 +878,24 @@ void MsSolver::maxsat_solve(solve_Command cmd)
             Int_MAX : LB_goalvalue * goal_gcd;
         const Int ub_raw = UB_goalvalue == Int_MAX ?
             Int_MAX : UB_goalvalue * goal_gcd;
-        hybrid_callback->on_scheduling_point(lb_raw, ub_raw);
+
+        CashHardeningState hardening;
+        hardening.soft_clause_queue = int(soft_cls.size());
+        hardening.top_for_hard = top_for_hard;
+        hardening.hardened_soft_clauses =
+            int(soft_cls.size()) - top_for_hard;
+        if (top_for_hard > 0 && top_for_hard <= soft_cls.size() &&
+            LB_goalvalue != Int_MAX && UB_goalvalue != Int_MAX) {
+          // The largest weight not yet hardened; the UB has to fall below
+          // LB + weight before harden_soft_cls() consumes it.
+          const Int next_weight = Int(soft_cls[top_for_hard - 1].fst);
+          const Int gap = UB_goalvalue - LB_goalvalue - next_weight;
+          hardening.gap_to_next = (gap > 0 ? gap : Int(0)) * goal_gcd;
+        }
+        if (LB_goalvalue != Int_MAX && UB_goalvalue != Int_MAX)
+          hardening.goal_interval = (UB_goalvalue - LB_goalvalue) * goal_gcd;
+
+        hybrid_callback->on_scheduling_point(lb_raw, ub_raw, hardening);
       }
       if (hybrid_callback != nullptr && hybrid_callback->should_stop(cpuTime())) {
         asynch_interrupt = true;

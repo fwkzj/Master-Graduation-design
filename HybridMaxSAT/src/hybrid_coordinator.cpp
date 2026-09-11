@@ -246,6 +246,9 @@ bool HybridCoordinator::find_upper_bound(
     RoundEvent event;
     event.round = ++round_;
     event.cash_seconds_before_spb = wall_elapsed();
+    event.harden_count = pending_hardening_.hardened_soft_clauses;
+    event.harden_gap_to_next = to_log_value(pending_hardening_.gap_to_next);
+    event.harden_goal_interval = to_log_value(pending_hardening_.goal_interval);
     event.cash_deadline_in =
         g_cash_deadline.load(std::memory_order_relaxed) - wall_now();
     event.cash_lb_before_spb = to_log_value(cash_lower_bound);
@@ -404,8 +407,10 @@ void HybridCoordinator::note_round_outcome(bool productive)
 }
 
 void HybridCoordinator::on_scheduling_point(const Int &cash_lower_bound,
-                                            const Int &cash_upper_bound)
+                                            const Int &cash_upper_bound,
+                                            const CashHardeningState &hardening)
 {
+    pending_hardening_ = hardening;
     const double elapsed = started_ ? wall_elapsed() : 0.0;
     if (elapsed - last_progress_wall_ < kProgressIntervalSeconds)
         return;
@@ -419,7 +424,13 @@ void HybridCoordinator::on_scheduling_point(const Int &cash_lower_bound,
                << "\",\"t\":" << elapsed
                << ",\"lb\":" << to_log_value(cash_lower_bound)
                << ",\"ub\":" << to_log_value(cash_upper_bound)
-               << ",\"round\":" << round_ << "}\n";
+               << ",\"round\":" << round_
+               << ",\"harden_count\":" << pending_hardening_.hardened_soft_clauses
+               << ",\"harden_queue\":" << pending_hardening_.soft_clause_queue
+               << ",\"harden_top\":" << pending_hardening_.top_for_hard
+               << ",\"harden_gap_to_next\":" << to_log_value(pending_hardening_.gap_to_next)
+               << ",\"harden_goal_interval\":" << to_log_value(pending_hardening_.goal_interval)
+               << "}\n";
     event_log_.flush();
 }
 
@@ -463,6 +474,9 @@ void HybridCoordinator::flush_pending_events()
                    << event.cash_seconds_before_spb
                    << ",\"propagated_original_variables\":"
                    << event.propagated_original_variables
+                   << ",\"harden_count\":" << event.harden_count
+                   << ",\"harden_gap_to_next\":" << event.harden_gap_to_next
+                   << ",\"harden_goal_interval\":" << event.harden_goal_interval
                    << ",\"schedule_reason\":\"" << json_escape(event.schedule_reason)
                    << "\",\"next_handoff_in\":" << event.next_handoff_in
                    << ",\"cash_deadline_in\":" << event.cash_deadline_in

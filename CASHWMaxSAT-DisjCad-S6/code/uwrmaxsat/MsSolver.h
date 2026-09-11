@@ -40,6 +40,24 @@ enum class HybridBoundResult {
     InvalidBelowLowerBound
 };
 
+// Read-only view of the hardening state, reported at every scheduling point.
+// `harden_soft_cls()` hardens every soft clause whose weight exceeds the goal
+// interval UB - LB, so the next clause to be hardened has the largest weight
+// still in the queue and the upper bound has to fall by `gap_to_next` for that
+// to happen. An external bound that does not close that gap changes nothing.
+struct CashHardeningState {
+    int hardened_soft_clauses = 0;
+    // The two raw counters behind the difference, for debugging: the sorted
+    // soft-clause queue and the index above which clauses are hardened.
+    int soft_clause_queue = 0;
+    int top_for_hard = 0;
+    // Smallest drop of the upper bound that hardens at least one more soft
+    // clause, in raw units; Int_MAX means nothing is left to harden.
+    Int gap_to_next = Int_MAX;
+    // Current goal interval UB - LB in raw units.
+    Int goal_interval = Int_MAX;
+};
+
 class HybridMaxSatCallback {
   public:
     virtual ~HybridMaxSatCallback() {}
@@ -83,7 +101,8 @@ class HybridMaxSatCallback {
     // not a handoff follows. This is what leaves an LB/UB trajectory behind for
     // runs that never hand off, e.g. the pure CASH baseline.
     virtual void on_scheduling_point(const Int& current_lower_bound,
-                                     const Int& current_upper_bound) {}
+                                     const Int& current_upper_bound,
+                                     const CashHardeningState&) {}
 };
 
 Int evalGoal(const vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls, vec<bool>& model, Minisat::vec<Lit>& soft_unsat);

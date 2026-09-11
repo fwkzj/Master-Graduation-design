@@ -566,8 +566,8 @@ class CashOnlyCallback final : public HybridMaxSatCallback {
     // The baseline never hands off, but it still publishes its bounds at every
     // scheduling point, so its LB/UB trajectory can be compared with the hybrid
     // run on the same instance under the same clock.
-    void on_scheduling_point(const Int &lower_bound,
-                             const Int &upper_bound) override
+    void on_scheduling_point(const Int &lower_bound, const Int &upper_bound,
+                             const CashHardeningState &hardening) override
     {
         if (!event_log_.is_open())
             return;
@@ -584,6 +584,10 @@ class CashOnlyCallback final : public HybridMaxSatCallback {
                    << "\",\"t\":" << elapsed
                    << ",\"lb\":" << (lower_bound == Int_MAX ? -1 : tolong(lower_bound))
                    << ",\"ub\":" << (upper_bound == Int_MAX ? -1 : tolong(upper_bound))
+                   << ",\"harden_count\":" << hardening.hardened_soft_clauses
+                   << ",\"harden_queue\":" << hardening.soft_clause_queue
+                   << ",\"harden_gap_to_next\":" << (hardening.gap_to_next == Int_MAX ? -1 : tolong(hardening.gap_to_next))
+                   << ",\"harden_goal_interval\":" << (hardening.goal_interval == Int_MAX ? -1 : tolong(hardening.goal_interval))
                    << ",\"round\":0}\n";
         event_log_.flush();
     }
