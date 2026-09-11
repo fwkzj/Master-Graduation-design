@@ -4,9 +4,9 @@
 
 服务器 S122（`fwkzj@222.20.99.55:22`）是项目的长期运行环境，目标目录为 `/home/fwkzj/HybridAlgorithm`。截至 2026-09-10，SSH 连接已恢复正常（主机名 `HCCS-122`，256 核），批量模式免密登录可用，`build/`、`manifests/`、`runs/` 均已就位。
 
-本地 Git 工作树为 `D:\硕士毕设`；GitHub 远端为 `git@github.com:fwkzj/Master-Graduation-design.git`（服务器侧 SSH 别名为 `git@github.com-hybridalgorithm:fwkzj/Master-Graduation-design.git`，指向同一仓库）。
+本地 Git 工作树为 `D:\硕士毕设`；GitHub 远端为 `git@github.com:fwkzj/Master-Graduation-design.git`（服务器侧 SSH 别名为 `git@github.com-hybridalgorithm:fwkzj/Master-Graduation-design.git`，指向同一仓库）。本地到 GitHub 的 22 端口不可用，因此本地仓库的 `origin` 指向 GitHub 的 443 端点 `ssh://git@ssh.github.com:443/fwkzj/Master-Graduation-design.git`。
 
-开发期分工固定：**本地只写报告与文档，代码只在服务器上修改**；服务器同时负责构建与运行。两侧各自在自己的分支上提交，见下文"三方协同规则"。公共数据只读，路径为 `/data/dataset/Maxsat/Complete/`；不得修改其中的任何文件。
+开发期分工固定：**仓库只有一条长期分支 `main`；算法代码与实验侧文档只在服务器上修改，本地只写报告与文档**。服务器同时负责构建与运行。公共数据只读，路径为 `/data/dataset/Maxsat/Complete/`；不得修改其中的任何文件。
 
 ## 本地禁止运行
 
@@ -14,37 +14,25 @@
 
 本地文件先集中完成一个可审查阶段，再统一提交和推送 GitHub；不要为每一条小型记录单独上传。
 
-## 三方协同规则
+## 单一分支协作规则
 
-本地与服务器各自在自己的分支上工作，互不改动对方的分支。以下是规则。
+**仓库只有一条长期分支 `main`（2026-09-11 起）。** 此前并行的 `local/report`、`server/code`、`sync/implementation` 等分支已全部合并进 `main` 并删除，不再有分支间的合并操作。
 
-### 分支划分与各自职责
+### 各自改什么
 
-| 位置 | 分支 | 只能修改 |
-| --- | --- | --- |
-| 本地 `D:\硕士毕设` | `local/report` | 报告与文档 |
-| 服务器 `/home/fwkzj/HybridAlgorithm` | `server/code` | 代码 |
+| 位置 | 可以修改的范围 |
+| --- | --- |
+| 服务器 `/home/fwkzj/HybridAlgorithm` | 算法代码（`HybridMaxSAT/`、`CASHWMaxSAT-DisjCad-S6/`、`SPBMAXSAT2-master/`）、`scripts/`、`tests/`、`manifests/`，以及实验侧文档 `agent.md`、`plan.md`、`experiment.md`、`.planning/`、`docs/experiments/` |
+| 本地 `D:\硕士毕设` | 报告与文献（`docs/reports/`、`docs/literature/`、`docs/archive/`、`artifacts/report-analysis/`） |
 
-- **本地只改报告部分内容。** 范围限 `docs/reports/`、`agent.md`、`plan.md`、`experiment.md` 等文档；同时继续遵守"本地禁止运行"。不得在本地改代码。
-- **服务器只改代码内容。** 范围限 `HybridMaxSAT/`、`CASHWMaxSAT-DisjCad-S6/`、`SPBMAXSAT2-master/`、`scripts/`、`tests/` 等实现与实验脚本。不得在服务器上改报告。
+同一份文件只由它归属的一侧修改，两侧都提交到 `main`。本地不写代码、不跑实验，见「本地禁止运行」。
 
-两侧各改各的，不交叉；同一份文件只由它归属的那一侧修改。
+### 同步方式
 
-### 禁止主动合并
-
-**任何一侧都不得自行合并，也不得自行 `rebase` 到对方分支或 `main`。** 只有用户明确说"合并"时才执行合并。默认状态下两个分支长期并存，互不影响。
-
-需要对方的改动时，向用户说明并等待指示，不要以"顺手对齐一下"为由自行合并。
-
-### 分支内同步
-
-在自己的分支上工作：开工前 `git pull --rebase origin <自己的分支>`，收工后 `git push origin <自己的分支>`。同步粒度是"一个可审查阶段"，不要积压多日再推。
-
-`main` 是合并后的稳定基线，只有在用户批准合并时才会前进。
-
-### 当前分支状态
-
-`sync/implementation` 是一次性的收编分支：它把此前散落在两侧工作树、从未版本化的实现（含仅存在于服务器的 CaDiCaL `conflicts()` 补丁）连同 `agent.md`、`plan.md` 的文档改动一并提交并推送。该分支同时含代码与文档，是本规则的过渡例外，**等用户指示后再合并**。合并后本地转入 `local/report`、服务器转入 `server/code`，此后按上面的划分各自工作。
+- 开工前 `git pull --rebase origin main`，收工后 `git push origin main`。
+- 同步粒度是「一个可审查阶段」，不要积压多日再推。
+- 一切同步走 git。**禁止用 `scp` 或手工拷贝覆盖对端文件**：那会让文件一致而历史分叉，此后无法判断哪一份才是权威。
+- 提交前确认工作树状态符合预期；供批次使用的提交必须是干净的，见「实验必须绑定提交」。
 
 ### 批次运行时服务器冻结
 
@@ -79,18 +67,9 @@ CaDiCaL 的 `configure` 会把 17 个脚本的权限位从 100644 改成 100755�
 
 ### 忽略规则
 
-`.gitignore` 已补充仓库根目录 `/runs/`、`__pycache__/`、`*.pyc`、`*.orig`、`*.rej`、`.claude/settings.local.json` 与第三方源码 `scipoptsuite-8.1.0/`。其中 `.claude/settings.local.json` 为各机私有配置，已从版本控制中移除。
+`.gitignore` 覆盖仓库根目录 `/runs/`、`HybridMaxSAT/runs/`、`__pycache__/`、`*.pyc`、`*.orig`、`*.rej`、`.claude/settings.local.json`、Word 临时文件 `~$*`、本地临时目录 `.codex-tmp/` 与第三方源码 `scipoptsuite-8.1.0/`。其中 `.claude/settings.local.json` 为各机私有配置，已从版本控制中移除。
 
 必须版本化的实验资产（不得忽略）：`scripts/run_batch.py`、`manifests/`、`tests/`、`experiment.md`、`docs/experiments/`。
-
-### 禁止的同步方式
-
-- **用 `scp` 手工覆盖对端文件。** 这会让文件一致而 git 历史分叉。此前本地与服务器的实现文件虽然逐字节相同，但那是手工拷贝的结果，双方 `git status` 都长期为脏，谁也无法判断哪份才是权威。所有同步一律走 git。
-- 在服务器上 `git add -A`，把 `scipoptsuite-8.1.0/`、`runs/`、`*.orig` 一并提交。
-
-### 冲突处理
-
-两侧各改各的文件，正常情况下不会冲突。若在用户指示合并时出现冲突，先停下并报告冲突文件，由用户决定取舍，不要自行拍板。服务器侧优先等批次空闲再处理。
 
 ## 研究目标
 

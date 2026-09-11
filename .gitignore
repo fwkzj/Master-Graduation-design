@@ -40,6 +40,10 @@ __pycache__/
 # Third-party sources fetched locally; too large to version
 CASHWMaxSAT-DisjCad-S6/code/scipoptsuite-8.1.0/
 
+# Word lock files and agent scratch directories
+~$*
+.codex-tmp/
+
 # OS noise
 .DS_Store
 Thumbs.db
