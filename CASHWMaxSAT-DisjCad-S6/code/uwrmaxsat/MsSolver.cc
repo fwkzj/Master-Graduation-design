@@ -281,6 +281,7 @@ static weight_t strat_pick_boundary(const MsSolver& S,
                                     const vec<weight_t>& remaining,
                                     weight_t lower_bound,
                                     weight_t geometric,
+                                    weight_t popped_max,
                                     const vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls,
                                     int top_for_strat)
 {
@@ -367,7 +368,11 @@ static weight_t do_stratification(MsSolver& S, vec<weight_t>& sorted_assump_Cs, 
         max_assump_Cs = sorted_assump_Cs.last(); sorted_assump_Cs.pop();
         if(!flag) {
             const weight_t geometric = max(lower_bound, max_assump_Cs - max(weight_t(1), max_assump_Cs / 2));
-            bound = strat_pick_boundary(S, sorted_assump_Cs, lower_bound, geometric, soft_cls, top_for_strat);
+            bound = strat_pick_boundary(S, sorted_assump_Cs, lower_bound, geometric, max_assump_Cs, soft_cls, top_for_strat);
+            // Invariant: the boundary may not exceed the weight being poured
+            // into this level, or the level would not advance at all.
+            if (bound > max_assump_Cs) bound = max_assump_Cs;
+            if (bound < lower_bound) bound = lower_bound;
             if (getenv("STRAT_DEBUG") != nullptr)
                 fprintf(stderr, "STRAT policy=%d geometric=%lld chosen=%lld levels_left=%d\n",
                         g_strat_policy, (long long)geometric, (long long)bound,
@@ -918,7 +923,8 @@ void MsSolver::maxsat_solve(solve_Command cmd)
             // CASH can spend most of the budget inside this level, so where it
             // is cut matters more than any later re-stratification, which the
             // policy only reaches once the level has been consumed.
-            const weight_t chosen = strat_pick_boundary(*this, sorted_assump_Cs, 0, entry, soft_cls, top_for_strat);
+            const weight_t top_weight = sorted_assump_Cs.size() > 0 ? (weight_t)sorted_assump_Cs.last() : entry;
+            const weight_t chosen = strat_pick_boundary(*this, sorted_assump_Cs, 0, entry, top_weight, soft_cls, top_for_strat);
             if (chosen > 0) entry = chosen;
         }
         if (getenv("STRAT_DEBUG") != nullptr)
