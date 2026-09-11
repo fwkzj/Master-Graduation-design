@@ -106,6 +106,8 @@ struct Options {
     // Seconds CASH's SCIP component may run before CASH's own CDCL loop gets a
     // turn. Zero keeps CASH's default, which is no limit at all.
     double scip_seconds = 0.0;
+    // S line: which stratification boundary policy the exact solver uses.
+    int strat_policy = 0;
     std::string instance_id;
     std::string input_path;
     std::string events_path;
@@ -232,6 +234,7 @@ std::string build_run_complete_line(const Options &options,
          << ",\"config\":\"" << config_name(options.config) << "\""
          << ",\"seed\":" << options.seed
          << ",\"budget_seconds\":" << options.budget_seconds
+         << ",\"strat_policy\":" << options.strat_policy
          << ",\"start_epoch\":" << start_epoch
          << ",\"end_epoch\":" << end_epoch
          << ",\"wall_seconds\":" << (end_epoch - start_epoch)
@@ -622,6 +625,7 @@ void run_cash(const Options &options, RunSummary &summary)
 
     MsSolver cash_solver(false, opt_preprocess);
     prepare_cash_globals(cash_solver);
+    set_strat_policy(options.strat_policy);
 
     // The budget covers parsing as well, matching the coordinator's clock.
     hybridmaxsat::set_cash_deadline(steady_now() + options.budget_seconds);
@@ -713,6 +717,7 @@ void run_hybrid(const Options &options, RunSummary &summary)
 
     MsSolver cash_solver(false, opt_preprocess);
     prepare_cash_globals(cash_solver);
+    set_strat_policy(options.strat_policy);
 
     hybridmaxsat::HybridCoordinator coordinator(options.input_path, schedule);
     coordinator.set_event_log(options.events_path, options.instance_id);
@@ -777,6 +782,12 @@ Options parse_options(int argc, char *argv[])
         else if (name == "--seed")
         {
             options.seed = static_cast<unsigned int>(std::stoul(value));
+        }
+        else if (name == "--strat")
+        {
+            options.strat_policy = std::stoi(value);
+            if (options.strat_policy < 0 || options.strat_policy > 4)
+                throw std::invalid_argument("--strat must be 0 geometric, 1 mass or 2 harden-aligned");
         }
         else if (name == "--budget")
         {

@@ -265,6 +265,96 @@ static void opt_stratification(vec<weight_t>& sorted_assump_Cs, vec<Pair<Int, bo
 
 template <class T> struct LT {bool operator()(T x, T y) { return x.snd->last() < y.snd->last(); }};
 
+static int g_strat_policy = STRAT_GEOMETRIC;
+
+void set_strat_policy(int policy) { g_strat_policy = policy; }
+int  get_strat_policy() { return g_strat_policy; }
+
+// P1: cut so that the level being formed (all weights >= b) carries about half
+// of the remaining weight mass, instead of half of the largest weight value.
+// P2: cut at the current hardening threshold UB-LB, so the level becomes the
+// smallest top segment that still contains every soft clause which could be
+// hardened right now. Both fall back to the geometric rule when their input is
+// not usable, so no policy can widen the boundary beyond the historical
+// contract.
+static weight_t strat_pick_boundary(const MsSolver& S,
+                                    const vec<weight_t>& remaining,
+                                    weight_t lower_bound,
+                                    weight_t geometric,
+                                    const vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls,
+                                    int top_for_strat)
+{
+    if (g_strat_policy == STRAT_HARDEN && S.LB_goalvalue != Int_MAX && S.UB_goalvalue != Int_MAX) {
+        const Int interval = S.UB_goalvalue - S.LB_goalvalue;
+        if (interval > 0) {
+            for (int i = int(remaining.size()) - 1; i >= 0; i--)
+                if (Int(remaining[i]) <= interval)
+                    return max(lower_bound, (weight_t)remaining[i]);
+        }
+        return geometric;
+    }
+
+    if (g_strat_policy == STRAT_GAP) {
+        // Largest relative gap between consecutive remaining weights, but only
+        // where that gap exceeds the total mass below it: below such a gap the
+        // levels carry so little weight that splitting them further cannot pay.
+        weight_t prev = 0, best = 0, below = 0;
+        for (int i = 0; i < int(remaining.size()); i++) {
+            weight_t w = remaining[i];
+            const weight_t gap = w - prev;
+            if (i > 0 && gap > below && gap > best) { best = gap; }
+            if (gap > 0) prev = w;
+            below += w;
+        }
+        if (best > 0) {
+            weight_t cut_prev = 0, cut = 0, mass = 0;
+            for (int i = 0; i < int(remaining.size()); i++) {
+                weight_t w = remaining[i];
+                if (i > 0 && w - cut_prev == best) { cut = w; break; }
+                if (w - cut_prev > 0) cut_prev = w;
+                mass += w;
+            }
+            if (cut > 0) return max(lower_bound, (weight_t)cut);
+        }
+        return geometric;
+    }
+
+    if (g_strat_policy == STRAT_COST) {
+        // Maximise mass per assumption among boundaries whose level still fits
+        // the assumption budget.
+        const long long nmax = (getenv("STRAT_NMAX") != nullptr) ? atoll(getenv("STRAT_NMAX")) : 4096;
+        std::map<long long, long long> hist;
+        for (int i = 0; i < top_for_strat; i++)
+            hist[(long long)soft_cls[i].fst]++;
+        long long count = 0, mass = 0, best_cut = 0;
+        double best_density = -1.0;
+        for (std::map<long long, long long>::reverse_iterator it = hist.rbegin(); it != hist.rend(); ++it) {
+            count += it->second;
+            mass += it->first * it->second;
+            if (count > nmax) break;
+            const double density = (double)mass / (double)count;
+            if (density > best_density) { best_density = density; best_cut = it->first; }
+        }
+        if (best_cut > 0) return max(lower_bound, (weight_t)best_cut);
+        return geometric;
+    }
+
+    if (g_strat_policy == STRAT_MASS) {
+        weight_t total = 0;
+        for (int i = 0; i < top_for_strat; i++) total += soft_cls[i].fst;
+        if (total <= 0) return geometric;
+        const weight_t target = total / 2;
+        weight_t acc = 0;
+        for (int i = top_for_strat - 1; i >= 0; i--) {
+            acc += soft_cls[i].fst;
+            if (acc >= target) return max(lower_bound, (weight_t)soft_cls[i].fst);
+        }
+        return geometric;
+    }
+
+    return geometric;
+}
+
 static weight_t do_stratification(MsSolver& S, vec<weight_t>& sorted_assump_Cs, vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls, 
         int& top_for_strat, Minisat::vec<Lit>& assump_ps, vec<Int>& assump_Cs, weight_t lower_bound, vec<int8_t>& multi_level_opt, bool flag = false)
 {
@@ -275,7 +365,14 @@ static weight_t do_stratification(MsSolver& S, vec<weight_t>& sorted_assump_Cs, 
     //reportf("%ld\n", bound);
     while (sorted_assump_Cs.size() > 0 && sorted_assump_Cs.last() >= lower_bound) {
         max_assump_Cs = sorted_assump_Cs.last(); sorted_assump_Cs.pop();
-        if(!flag) bound = max(lower_bound, max_assump_Cs - max(weight_t(1),max_assump_Cs / 2));
+        if(!flag) {
+            const weight_t geometric = max(lower_bound, max_assump_Cs - max(weight_t(1), max_assump_Cs / 2));
+            bound = strat_pick_boundary(S, sorted_assump_Cs, lower_bound, geometric, soft_cls, top_for_strat);
+            if (getenv("STRAT_DEBUG") != nullptr)
+                fprintf(stderr, "STRAT policy=%d geometric=%lld chosen=%lld levels_left=%d\n",
+                        g_strat_policy, (long long)geometric, (long long)bound,
+                        (int)sorted_assump_Cs.size());
+        }
         while (sorted_assump_Cs.size() > 0 && sorted_assump_Cs.last() >= bound && !multi_level_opt[sorted_assump_Cs.size()]) 
             max_assump_Cs = sorted_assump_Cs.last(), sorted_assump_Cs.pop(); 
         int start = top_for_strat - 1, in_global_assumps = 0;
@@ -813,10 +910,21 @@ void MsSolver::maxsat_solve(solve_Command cmd)
                     ml_opt, (opt_lexicographic ? "" : " Try -lex-opt option."));
         //reportf("%f %ld\n", variance, tolong(avg_soft_weight * avg_soft_weight));
         //reportf("variance: %f avg: %s\n", variance / tolong(avg_soft_weight), toString(avg_soft_weight));
-        if(variance < tolong(avg_soft_weight * avg_soft_weight) && variance > 10) conf_number = -1,  
-            max_assump_Cs = do_stratification(*this, sorted_assump_Cs, soft_cls, top_for_strat, assump_ps, assump_Cs, 0, multi_level_opt, true);
-        else 
-            max_assump_Cs = do_stratification(*this, sorted_assump_Cs, soft_cls, top_for_strat, assump_ps, assump_Cs, tolong(avg_soft_weight), multi_level_opt, true);
+        const bool flat = (variance < tolong(avg_soft_weight * avg_soft_weight) && variance > 10);
+        if (flat) conf_number = -1;
+        weight_t entry = flat ? 0 : tolong(avg_soft_weight);
+        if (get_strat_policy() != STRAT_GEOMETRIC) {
+            // Route the first level through the same policy. On hard instances
+            // CASH can spend most of the budget inside this level, so where it
+            // is cut matters more than any later re-stratification, which the
+            // policy only reaches once the level has been consumed.
+            const weight_t chosen = strat_pick_boundary(*this, sorted_assump_Cs, 0, entry, soft_cls, top_for_strat);
+            if (chosen > 0) entry = chosen;
+        }
+        if (getenv("STRAT_DEBUG") != nullptr)
+            fprintf(stderr, "STRAT_INIT policy=%d flat=%d entry=%lld remaining=%d\n",
+                    get_strat_policy(), (int)flat, (long long)entry, (int)sorted_assump_Cs.size());
+        max_assump_Cs = do_stratification(*this, sorted_assump_Cs, soft_cls, top_for_strat, assump_ps, assump_Cs, entry, multi_level_opt, true);
     }
     //print_Clause(true, true);
     //print_Lits("assump_ps", assump_ps, true);

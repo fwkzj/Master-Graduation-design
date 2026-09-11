@@ -206,6 +206,7 @@ def run_one(task, args, stopper, meta):
         "--budget", str(args.budget),
         "--cash-window", str(args.cash_window),
         "--spb-window", str(args.spb_window),
+        "--strat", str(args.strat),
         "--instance-id", instance,
         str(instance_path),
         str(events_path),
@@ -407,6 +408,8 @@ def main():
     parser.add_argument("--budget", type=int, default=600)
     parser.add_argument("--cash-window", type=int, default=15)
     parser.add_argument("--spb-window", type=int, default=3)
+    parser.add_argument("--strat", type=int, default=0,
+                        help="S line stratification boundary policy: 0 geometric, 1 mass, 2 harden-aligned")
     parser.add_argument("--scip-cpu", type=float, default=0,
                         help="0 derives CASH's SCIP bound from the CASH window")
     parser.add_argument("--workers", type=int, default=32)
@@ -457,6 +460,7 @@ def main():
         "seeds": SEEDS,
         "budget_seconds": args.budget,
         "cash_window_seconds": args.cash_window,
+        "strat_policy": args.strat,
         "spb_window_seconds": args.spb_window,
         "scip_cpu_seconds": args.scip_cpu or None,
         "workers": args.workers,

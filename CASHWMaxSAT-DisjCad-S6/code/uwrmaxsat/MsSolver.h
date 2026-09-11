@@ -40,6 +40,22 @@ enum class HybridBoundResult {
     InvalidBelowLowerBound
 };
 
+// Stratification boundary policies (S line, see
+// docs/planning/2026-09-11-stratification-boundary.md). A boundary b means the
+// next assumption level is every soft clause with weight >= b; the policy only
+// decides where that cut falls. All of them keep the same objective: the level
+// organisation is a search decision, not a semantic one.
+enum StratBoundaryPolicy {
+    STRAT_GEOMETRIC = 0, // P0: W - max(1, W/2), the historical rule
+    STRAT_MASS = 1,      // P1: cut so the level holds about half the weight mass
+    STRAT_HARDEN = 2,    // P2: cut at the current UB-LB hardening threshold
+    STRAT_GAP = 3,       // P3: cut at the largest relative weight gap
+    STRAT_COST = 4,      // P4: best mass per assumption, bounded level size
+};
+
+void set_strat_policy(int policy);
+int  get_strat_policy();
+
 // Read-only view of the hardening state, reported at every scheduling point.
 // `harden_soft_cls()` hardens every soft clause whose weight exceeds the goal
 // interval UB - LB, so the next clause to be hardened has the largest weight
