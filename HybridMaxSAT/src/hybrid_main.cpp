@@ -519,9 +519,14 @@ void apply_maxsat_options()
 // where CASH never returns to a scheduling point.
 class CashOnlyCallback final : public HybridMaxSatCallback {
   public:
-    explicit CashOnlyCallback(int budget_seconds)
+    CashOnlyCallback(int budget_seconds, const std::string &events_path,
+                     const std::string &instance_id)
         : budget_seconds_(budget_seconds)
-        , start_wall_(std::chrono::steady_clock::now()) {}
+        , instance_id_(instance_id)
+        , start_wall_(std::chrono::steady_clock::now())
+    {
+        event_log_.open(events_path.c_str());
+    }
 
     // The deadline is the whole budget, never a window: each SAT call runs
     // until the run is over, so nothing restarts Cadical mid-search the way the
@@ -546,13 +551,43 @@ class CashOnlyCallback final : public HybridMaxSatCallback {
             budget_seconds_;
     }
 
-    bool find_upper_bound(const std::vector<int> &, const Int &, Int &) override
+    bool find_upper_bound(const std::vector<int> &, const Int &, const Int &,
+                          Int &) override
     {
         return false;
     }
 
+    // The baseline never hands off, but it still publishes its bounds at every
+    // scheduling point, so its LB/UB trajectory can be compared with the hybrid
+    // run on the same instance under the same clock.
+    void on_scheduling_point(const Int &lower_bound,
+                             const Int &upper_bound) override
+    {
+        if (!event_log_.is_open())
+            return;
+
+        const double elapsed = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - start_wall_).count();
+        if (wrote_progress_ && elapsed - last_progress_ < 5.0)
+            return;
+        last_progress_ = elapsed;
+        wrote_progress_ = true;
+
+        event_log_ << "{\"event\":\"progress\",\"instance\":\""
+                   << json_escape(instance_id_)
+                   << "\",\"t\":" << elapsed
+                   << ",\"lb\":" << (lower_bound == Int_MAX ? -1 : tolong(lower_bound))
+                   << ",\"ub\":" << (upper_bound == Int_MAX ? -1 : tolong(upper_bound))
+                   << ",\"round\":0}\n";
+        event_log_.flush();
+    }
+
   private:
     int budget_seconds_;
+    std::string instance_id_;
+    std::ofstream event_log_;
+    double last_progress_ = 0.0;
+    bool wrote_progress_ = false;
     std::chrono::steady_clock::time_point start_wall_;
 };
 
@@ -574,7 +609,8 @@ void run_cash(const Options &options, RunSummary &summary)
 
     // The budget covers parsing as well, matching the coordinator's clock.
     hybridmaxsat::set_cash_deadline(steady_now() + options.budget_seconds);
-    CashOnlyCallback callback(options.budget_seconds);
+    CashOnlyCallback callback(options.budget_seconds, options.events_path,
+                              options.instance_id);
     cash_solver.set_hybrid_callback(&callback);
 
     parse_WCNF_file(const_cast<char *>(options.input_path.c_str()), cash_solver);

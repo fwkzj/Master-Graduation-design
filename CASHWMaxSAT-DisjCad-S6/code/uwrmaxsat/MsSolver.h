@@ -69,10 +69,21 @@ class HybridMaxSatCallback {
     // Run SPB and return one privately verified, original-WCNF upper bound.
     // Returning false means no candidate was found in this window.
     virtual bool find_upper_bound(const std::vector<int>& partial_assignment,
+                                  const Int& current_lower_bound,
                                   const Int& current_upper_bound,
                                   Int& candidate_upper_bound) = 0;
 
-    virtual void on_upper_bound_result(HybridBoundResult) {}
+    // Reported at the same safe point once the round candidate has been folded
+    // into the CASH bound state, so the round log carries both bounds on both
+    // sides of every handoff. The lower bound comes from CASH itself; an
+    // external UB can never move it.
+    virtual void on_upper_bound_result(HybridBoundResult, const Int& current_lower_bound) {}
+
+    // Called at every scheduling point, before the window decision, whether or
+    // not a handoff follows. This is what leaves an LB/UB trajectory behind for
+    // runs that never hand off, e.g. the pure CASH baseline.
+    virtual void on_scheduling_point(const Int& current_lower_bound,
+                                     const Int& current_upper_bound) {}
 };
 
 Int evalGoal(const vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls, vec<bool>& model, Minisat::vec<Lit>& soft_unsat);

@@ -81,6 +81,11 @@ struct RoundEvent {
     // Evidence that the window ran a real search instead of only paying the
     // fixed cost around it: flips actually executed, and how the wall time
     // inside the call split between setup, search and certificate re-check.
+    // Bounds on both sides of the handoff: what CASH held when SPB started and
+    // what it held once the round was folded in. The LB is CASH own; a round
+    // can only move the UB.
+    long long cash_lb_before_spb = -1;
+    long long cash_lb_after_spb = -1;
     long long spb_steps = 0;
     int spb_tries = 0;
     double spb_init_seconds = 0.0;
@@ -104,9 +109,16 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     // superset of the original WCNF variables; the coordinator trims it to the
     // part SPB knows before handing it over.
     bool find_upper_bound(const std::vector<int> &cash_assignment,
-                          const Int &current_upper_bound,
+                          const Int &cash_lower_bound,
+                          const Int &cash_upper_bound,
                           Int &candidate_upper_bound) override;
-    void on_upper_bound_result(HybridBoundResult result) override;
+    void on_upper_bound_result(HybridBoundResult result,
+                               const Int &cash_lower_bound) override;
+
+    // CASH reports its own bounds at every scheduling point, so the run keeps
+    // an LB/UB trajectory even across the windows in which no handoff happens.
+    void on_scheduling_point(const Int &cash_lower_bound,
+                             const Int &cash_upper_bound) override;
 
     // Write each round to `path` as soon as it completes, instead of holding
     // every event until the run ends. A run that stops on the end-to-end
@@ -148,6 +160,9 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     double last_round_end_wall_ = 0.0;
     // Consecutive rounds SPB could not improve. Drives the backoff.
     int barren_rounds_ = 0;
+    // Throttle for the progress records; one every few seconds is plenty to
+    // show whether CASH is closing the gap or standing still.
+    double last_progress_wall_ = -1.0e18;
     int round_ = 0;
     std::vector<RoundEvent> events_;
     Solution best_spb_certificate_;

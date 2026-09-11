@@ -57,6 +57,11 @@ long long to_log_value(const Int &value)
 // seconds between handoffs.
 const int kMaxBackoffRounds = 4;
 
+// One progress record every this many seconds of protocol time. A record per
+// scheduling point would be far more than needed to see whether the gap is
+// closing, and the points can be dense.
+const double kProgressIntervalSeconds = 5.0;
+
 int count_propagated(const std::vector<int> &partial_assignment)
 {
     int count = 0;
@@ -222,12 +227,14 @@ bool HybridCoordinator::should_stop(double)
 
 bool HybridCoordinator::find_upper_bound(
     const std::vector<int> &cash_assignment,
+    const Int &cash_lower_bound,
     const Int &current_upper_bound,
     Int &candidate_upper_bound)
 {
     RoundEvent event;
     event.round = ++round_;
     event.cash_seconds_before_spb = wall_elapsed();
+    event.cash_lb_before_spb = to_log_value(cash_lower_bound);
     event.cash_ub_before_spb = to_log_value(current_upper_bound);
 
     // CASH's vector is sized by *its* variable count, which includes the
@@ -282,6 +289,12 @@ bool HybridCoordinator::find_upper_bound(
     last_round_end_wall_ = spb_call_end;
     next_spb_wall_ = last_round_end_wall_ + schedule_.cash_window_seconds;
     arm_deadline();
+
+    // A round CASH never hears about cannot have changed its bounds, so the
+    // after-values are the before-values. Leaving them unset would read as
+    // unknown in the log and look like missing data.
+    event.cash_lb_after_spb = event.cash_lb_before_spb;
+    event.cash_ub_after_spb = event.cash_ub_before_spb;
 
     if (!result.feasible)
     {
@@ -338,12 +351,34 @@ void HybridCoordinator::note_round_outcome(bool productive)
         last_round_end_wall_ + schedule_.cash_window_seconds * factor;
 }
 
-void HybridCoordinator::on_upper_bound_result(HybridBoundResult result)
+void HybridCoordinator::on_scheduling_point(const Int &cash_lower_bound,
+                                            const Int &cash_upper_bound)
+{
+    const double elapsed = started_ ? wall_elapsed() : 0.0;
+    if (elapsed - last_progress_wall_ < kProgressIntervalSeconds)
+        return;
+    last_progress_wall_ = elapsed;
+
+    if (!event_log_.is_open())
+        return;
+
+    event_log_ << "{\"event\":\"progress\",\"instance\":\""
+               << json_escape(event_log_instance_id_)
+               << "\",\"t\":" << elapsed
+               << ",\"lb\":" << to_log_value(cash_lower_bound)
+               << ",\"ub\":" << to_log_value(cash_upper_bound)
+               << ",\"round\":" << round_ << "}\n";
+    event_log_.flush();
+}
+
+void HybridCoordinator::on_upper_bound_result(HybridBoundResult result,
+                                              const Int &cash_lower_bound)
 {
     note_round_outcome(result == HybridBoundResult::Accepted);
     if (!events_.empty())
     {
         events_.back().cash_bound_result = result;
+        events_.back().cash_lb_after_spb = to_log_value(cash_lower_bound);
         events_.back().cash_ub_after_spb =
             result == HybridBoundResult::Accepted ? events_.back().spb_ub :
             events_.back().cash_ub_before_spb;
@@ -376,8 +411,10 @@ void HybridCoordinator::flush_pending_events()
                    << event.cash_seconds_before_spb
                    << ",\"propagated_original_variables\":"
                    << event.propagated_original_variables
+                   << ",\"cash_lb_before_spb\":" << event.cash_lb_before_spb
                    << ",\"cash_ub_before_spb\":" << event.cash_ub_before_spb
                    << ",\"spb_ub\":" << event.spb_ub
+                   << ",\"cash_lb_after_spb\":" << event.cash_lb_after_spb
                    << ",\"cash_ub_after_spb\":" << event.cash_ub_after_spb
                    << ",\"cash_bound_result\":\""
                    << bound_result_name(event.cash_bound_result) << "\""

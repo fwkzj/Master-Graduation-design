@@ -870,6 +870,16 @@ void MsSolver::maxsat_solve(solve_Command cmd)
     //sat_solver.verbosity = 0;
     do { // a loop to process GBMO splitting points
     while (1) {
+      // Every scheduling point publishes the CASH bounds, whether or not a
+      // handoff follows, so even a run that never hands off leaves an LB/UB
+      // trajectory behind.
+      if (hybrid_callback != nullptr) {
+        const Int lb_raw = LB_goalvalue == Int_MAX ?
+            Int_MAX : LB_goalvalue * goal_gcd;
+        const Int ub_raw = UB_goalvalue == Int_MAX ?
+            Int_MAX : UB_goalvalue * goal_gcd;
+        hybrid_callback->on_scheduling_point(lb_raw, ub_raw);
+      }
       if (hybrid_callback != nullptr && hybrid_callback->should_stop(cpuTime())) {
         asynch_interrupt = true;
         break;
@@ -885,10 +895,13 @@ void MsSolver::maxsat_solve(solve_Command cmd)
           else if (propagated == l_False) partial_assignment[x + 1] = 0;
         }
 
+        const Int current_lower_bound = LB_goalvalue == Int_MAX ?
+            Int_MAX : LB_goalvalue * goal_gcd;
         const Int current_upper_bound = UB_goalvalue == Int_MAX ?
             Int_MAX : UB_goalvalue * goal_gcd;
         Int candidate_upper_bound = Int_MAX;
         if (hybrid_callback->find_upper_bound(partial_assignment,
+                                               current_lower_bound,
                                                current_upper_bound,
                                                candidate_upper_bound)) {
           HybridBoundResult bound_result = HybridBoundResult::NotImproved;
@@ -912,7 +925,7 @@ void MsSolver::maxsat_solve(solve_Command cmd)
               bound_result = HybridBoundResult::Accepted;
             }
           }
-          hybrid_callback->on_upper_bound_result(bound_result);
+          hybrid_callback->on_upper_bound_result(bound_result, current_lower_bound);
         }
       }
 #ifdef USE_SCIP
