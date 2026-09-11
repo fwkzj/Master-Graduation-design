@@ -1,0 +1,172 @@
+{
+  "input": "D:\\\u7855\u58eb\u6bd5\u8bbe\\docs\\reports\\midterm\\\u4e2d\u671f\u62a5\u544a-\u5321\u667a\u9889.docx",
+  "fonts_by_char_count": {
+    "Times New Roman": 18163,
+    "\u9ed1\u4f53": 348,
+    "\u534e\u6587\u4e2d\u5b8b": 32
+  },
+  "direct_run_formatting_runs": 287,
+  "direct_paragraph_formatting_paragraphs": 198,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 6,
+      "text": "\u7855\u58eb\u751f\u8bba\u6587\u4e2d\u671f\u8fdb\u5c55\u62a5\u544a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 8,
+      "text": "\u9898 \u76ee\uff1a\u878d\u5408\u5c40\u90e8\u641c\u7d22\u4e0e\u6838\u5fc3\u5f15\u5bfc\u7684\u6df7\u5408\u7cbe\u786eMaxSAT\u6c42\u89e3\u7b97\u6cd5\u7814\u7a76",
+      "style": "Normal"
+    },
+    {
+      "para_index": 16,
+      "text": "\u534e\u4e2d\u79d1\u6280\u5927\u5b66\u7814\u7a76\u751f\u9662\u5236",
+      "style": "Normal"
+    },
+    {
+      "para_index": 34,
+      "text": "1. \u7cbe\u786e\u7b97\u6cd5\u7684\u51b7\u542f\u52a8\u74f6\u9888\u672a\u88ab\u6839\u672c\u89e3\u51b3\u3002 \u7f3a\u4e4f\u7d27\u81f4\u521d\u59cb\u4e0a\u754c\u65f6\uff0c\u6838\u63d0\u53d6\u4e0e\u677e\u5f1b\u53d8\u91cf\u5f15\u5165\u7684\u4ee3\u4ef7\u88ab\u653e\u5927\uff0c\u4e0b\u754c\u6536\u655b\u7f13\u6162\uff0c\u5927\u89c4\u6a21\u5b9e\u4f8b\u4e0a\u5c24\u4e3a\u7a81\u51fa\u3002",
+      "style": "Normal"
+    },
+    {
+      "para_index": 35,
+      "text": "2. \u5c40\u90e8\u641c\u7d22\u89e3\u8d28\u91cf\u4e0d\u7a33\u5b9a\u4e14\u65e0\u6700\u4f18\u6027\u4fdd\u8bc1\u3002 \u5728\u7ed3\u6784\u590d\u6742\u6216\u89c4\u6a21\u5e9e\u5927\u7684\u5b9e\u4f8b\u4e0a\uff0c\u5c40\u90e8\u641c\u7d22\u53ef\u80fd\u957f\u65f6\u95f4\u627e\u4e0d\u5230\u53ef\u884c\u89e3\uff0c\u5176\u8d21\u732e\u5177\u6709\u5f3a\u4e0d\u786e\u5b9a\u6027\u3002",
+      "style": "Normal"
+    },
+    {
+      "para_index": 38,
+      "text": "\u672c\u8bfe\u9898\u6b63\u662f\u9488\u5bf9\u4e0a\u8ff0\u95ee\u9898\uff0c\u7814\u7a76\u5728\u4e0d\u524a\u5f31\u7cbe\u786e\u7b97\u6cd5\u5b8c\u5907\u6027\u7684\u524d\u63d0\u4e0b\uff0c\u5982\u4f55\u5c06\u5c40\u90e8\u641c\u7d22\u4ee5\u4e0a\u754c\u6784\u9020\u5668\u7684\u8eab\u4efd\u5b89\u5168\u3001\u6301\u7eed\u5730\u5d4c\u5165\u6838\u5fc3\u5f15\u5bfc\u7cbe\u786e\u6c42\u89e3\u6846\u67b6\u3002",
+      "style": "Normal"
+    },
+    {
+      "para_index": 52,
+      "text": "\uff08\u6b64\u5904\u63d2\u5165\u6280\u672f\u8def\u7ebf\u56fe\uff1a\u5c55\u793a\u4e0a\u8ff0\u56db\u5c42\u7ed3\u6784\u4e0e\u5404\u6a21\u5757\u95f4\u7684\u8854\u63a5\u5173\u7cfb\u3002\uff09",
+      "style": "Normal"
+    },
+    {
+      "para_index": 68,
+      "text": "\u914d\u7f6e\u77e9\u9635\u3002 \u5efa\u7acb\u56db\u79cd\u914d\u7f6e\u6784\u6210\u7684\u6d88\u878d\u9636\u68af\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 77,
+      "text": "Stage 0 \u9a8c\u6536\u3002 5 \u5b9e\u4f8b \u00d7 4 \u914d\u7f6e \u00d7 3 \u91cd\u590d\u5171 60 \u6b21\u8fd0\u884c\u5168\u90e8\u6b63\u5e38\u9000\u51fa\u4e14\u65e0\u544a\u8b66\u3002\u754c\u503c\u590d\u6838\u5728\u56db\u914d\u7f6e\u4e0e\u4e09\u91cd\u590d\u4e0b\u5b8c\u5168\u4e00\u81f4\uff0c\u4e14\u4e0e\u624b\u7b97\u6700\u4f18\u76f8\u540c\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 82,
+      "text": "\u672c\u8282\u5f85\u8865\u5145\u3002 \u6b63\u5f0f\u5b9e\u9a8c\u7ed3\u679c\u5c1a\u672a\u4ea7\u51fa\uff0c\u5f85\u8c03\u8bd5\u6279\u6b21\u4e0e\u5168\u91cf\u6279\u6b21\u5b8c\u6210\u540e\u586b\u5199\uff0c\u5185\u5bb9\u5305\u62ec\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 84,
+      "text": "2. \u6b63\u5f0f\u6279\u6b21\u7ed3\u679c\uff1aMSE23W \u4e0e MSE24W \u5168\u90e8\u52a0\u6743\u5b9e\u4f8b\u4e0a\u7684\u56db\u914d\u7f6e \u00d7 \u4e09\u91cd\u590d\u7ed3\u679c\u3002",
+      "style": "Normal"
+    },
+    {
+      "para_index": 96,
+      "text": "\u53d1\u8868\u4e0e\u63a5\u6536\u8bba\u6587",
+      "style": "Normal"
+    },
+    {
+      "para_index": 98,
+      "text": "\u4e13\u3000\u3000\u5229",
+      "style": "Normal"
+    },
+    {
+      "para_index": 100,
+      "text": "\u6807\u3000\u3000\u51c6",
+      "style": "Normal"
+    },
+    {
+      "para_index": 102,
+      "text": "\u79d1\u6280\u5956\u52b1",
+      "style": "Normal"
+    },
+    {
+      "para_index": 117,
+      "text": "\u9636\u6bb5\u6027\u65e5\u671f\u89c4\u5212\u5982\u4e0b\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 157,
+      "text": "\u5b66       \u53f7",
+      "style": "Normal"
+    },
+    {
+      "para_index": 158,
+      "text": "M202474138",
+      "style": "Normal"
+    },
+    {
+      "para_index": 159,
+      "text": "\u59d3       \u540d",
+      "style": "Normal"
+    },
+    {
+      "para_index": 160,
+      "text": "\u5321\u667a\u9889",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_run_formatting": [
+      {
+        "para_index": 6,
+        "run_text": "\u7855",
+        "style": "Normal"
+      },
+      {
+        "para_index": 6,
+        "run_text": "\u58eb\u751f\u8bba\u6587\u4e2d\u671f\u8fdb\u5c55\u62a5\u544a",
+        "style": "Normal"
+      },
+      {
+        "para_index": 8,
+        "run_text": "\u9898 \u76ee\uff1a\u878d\u5408\u5c40\u90e8\u641c\u7d22\u4e0e\u6838\u5fc3\u5f15\u5bfc\u7684\u6df7\u5408\u7cbe\u786eMaxSAT\u6c42\u89e3\u7b97\u6cd5\u7814\u7a76",
+        "style": "Normal"
+      },
+      {
+        "para_index": 16,
+        "run_text": "\u534e\u4e2d\u79d1\u6280\u5927\u5b66\u7814\u7a76\u751f\u9662\u5236",
+        "style": "Normal"
+      },
+      {
+        "para_index": 18,
+        "run_text": "1 \u7814\u7a76\u80cc\u666f\u4e0e\u610f\u4e49",
+        "style": "Normal"
+      }
+    ],
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 13,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 14,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 15,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 16,
+        "text": "\u534e\u4e2d\u79d1\u6280\u5927\u5b66\u7814\u7a76\u751f\u9662\u5236",
+        "style": "Normal"
+      },
+      {
+        "para_index": 18,
+        "text": "1 \u7814\u7a76\u80cc\u666f\u4e0e\u610f\u4e49",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

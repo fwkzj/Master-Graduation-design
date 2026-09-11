@@ -1,0 +1,28 @@
+{
+  "batch": "full23w_1seed",
+  "manifest": "manifests/full_MSE23W.txt",
+  "manifest_sha1": "4f63bce6a563ec2fdfdf7193a1bd14bc4daffc71",
+  "instance_count": 558,
+  "configs": [
+    "CASH",
+    "Hybrid"
+  ],
+  "seeds": [
+    20260909
+  ],
+  "budget_seconds": 600,
+  "cash_window_seconds": 15,
+  "spb_window_seconds": 3,
+  "scip_cpu_seconds": null,
+  "workers": 64,
+  "mode": "full",
+  "harness_grace_seconds": 15,
+  "kill_after_seconds": 30,
+  "binary": "/home/fwkzj/HybridAlgorithm/build/HybridMaxSAT/hybridmaxsat",
+  "binary_sha1": "ccee2cce1c856138334a7d7db863da7f6a33534b",
+  "host": "HCCS-122",
+  "uname": "Linux HCCS-122 5.15.0-118-generic #128-Ubuntu SMP Fri Jul 5 09:28:59 UTC 2024 x86_64 x86_64",
+  "cpu_count": 256,
+  "started_at": "2026-09-11T03:19:13.586475+00:00",
+  "git_commit": "e18f1c198ba737406aaf0dacfb6970e96a46378f"
+}
