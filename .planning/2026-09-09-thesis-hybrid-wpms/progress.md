@@ -80,3 +80,12 @@
 1. 在 30/10 下复测非抢占配置（`HybridNatural`）：抢占已被两轮实验证明是损失来源，而非抢占在 15/3 调试集上做到了 0 亏 0 赚，需要在 SPB 真正搜索的窗口下重新评估它能否把「赚」的部分兑现。
 2. 实施两处结构修复：持久 worker 在 CASH 开始求解前预构造；`init()` 改为按新赋值与旧状态的差异增量重建。修复后再用同一 50 实例复测，直接比较 `spb_init_seconds` 与每窗口翻转数。
 3. 上述任一方向出现净收益后，再考虑恢复全量（558 实例）与正式阶段的多配置、多种子。
+## 2026-09-11 仓库统一为单一 main 分支
+
+- 先做保护：把只存在于服务器磁盘、从未推送的 `server/code`（3 个提交，含混合实现与 SPB 搜索诊断）推送到 GitHub 备份。
+- 逐文件对比两条线（分叉点 `6a6e504`）：服务器线在分叉后改过 49 个文件，本地线改过 34 个，交集 24 个；其中 18 个只是行尾或权限差异，真正内容不同的只有 6 个。
+- 取舍：5 个代码文件取服务器版本（本地那份是更早的实现，例如 `local_search_solver.h` 还缺 `set_cutoff_time` 与诊断接口），`.gitignore` 取本地版本；10 个仅行尾不同的文件统一为 LF；`.claude/settings.local.json` 从版本控制移除。
+- 合并提交 `f3164cc`（代码线 + 文档线），随后并入报告分支 `local/report-progress`（`c40f708`），再把 `agent.md` 改写为单一分支规则（`2c3bf8c`）。
+- 分支清理：远端删除 `hybrid-cash-spb`、`local/report-progress`、`midterm-report`、`sync/implementation`、`server/code`；本地删除同名分支并移除三个 worktree（旧目录备份在 `.codex-tmp/old-worktrees/`）。删除前逐个确认已并入 `main`。
+- 验证：服务器 `ctest` 2/2 通过（Parser Gate、持久接口）；30/10 冒烟实例上 CASH 与 Hybrid 均正常，Hybrid 第一轮交回 UB 261 并被 CASH 接受。
+- 现状：服务器、本地与 GitHub 都只有 `main` = `2c3bf8c`。本地未跟踪的报告产物（`docs/reports/midterm/中期报告-匡智颉-修订版*`、`artifacts/midterm-revision/`、`artifacts/experiment-records/`）待用户决定是否入库。
