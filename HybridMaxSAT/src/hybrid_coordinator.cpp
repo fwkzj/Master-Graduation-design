@@ -268,9 +268,18 @@ bool HybridCoordinator::find_upper_bound(
     spb_solver_.set_cutoff_time(
         std::min<double>(schedule_.spb_window_seconds, remaining));
 
+    const double spb_call_start = wall_now();
     const Solution result =
         spb_solver_.improve_with_persistent_weights(*initial_assignment);
-    last_round_end_wall_ = wall_now();
+    const double spb_call_end = wall_now();
+    event.spb_steps = spb_solver_.last_step_count();
+    event.spb_init_seconds = spb_solver_.last_init_seconds();
+    event.spb_tries = spb_solver_.last_tries();
+    event.spb_search_seconds = spb_solver_.last_search_seconds();
+    event.spb_setup_seconds = spb_solver_.last_setup_seconds();
+    event.spb_verify_seconds = spb_solver_.last_verify_seconds();
+    event.spb_call_seconds = spb_call_end - spb_call_start;
+    last_round_end_wall_ = spb_call_end;
     next_spb_wall_ = last_round_end_wall_ + schedule_.cash_window_seconds;
     arm_deadline();
 
@@ -371,7 +380,15 @@ void HybridCoordinator::flush_pending_events()
                    << ",\"spb_ub\":" << event.spb_ub
                    << ",\"cash_ub_after_spb\":" << event.cash_ub_after_spb
                    << ",\"cash_bound_result\":\""
-                   << bound_result_name(event.cash_bound_result) << "\"}\n";
+                   << bound_result_name(event.cash_bound_result) << "\""
+                   << ",\"spb_steps\":" << event.spb_steps
+                   << ",\"spb_tries\":" << event.spb_tries
+                   << ",\"spb_init_seconds\":" << event.spb_init_seconds
+                   << ",\"spb_call_seconds\":" << event.spb_call_seconds
+                   << ",\"spb_search_seconds\":" << event.spb_search_seconds
+                   << ",\"spb_setup_seconds\":" << event.spb_setup_seconds
+                   << ",\"spb_verify_seconds\":" << event.spb_verify_seconds
+                   << "}\n";
     }
     event_log_.flush();
 }

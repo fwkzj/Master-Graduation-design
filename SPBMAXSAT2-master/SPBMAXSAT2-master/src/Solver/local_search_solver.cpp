@@ -102,6 +102,7 @@ Solution LocalSearchSolver::improve_with_persistent_weights(
 
     begin_search();
 
+    const double setup_start = util::global_elapsed_seconds();
     if (!persistent_worker_)
     {
         Instance working_instance = backend_.originInstance;
@@ -111,13 +112,25 @@ Solution LocalSearchSolver::improve_with_persistent_weights(
         persistent_worker_->settings(backend_.settings);
         persistent_worker_->set_cutoff_time(backend_.settings.cutoff_time);
     }
+    const double search_start = util::global_elapsed_seconds();
 
     std::vector<int> working_solution = initial_solution;
     persistent_worker_->local_search_with_init_solution(
         working_solution, 0, persistent_weights_initialized_);
     persistent_weights_initialized_ = true;
 
-    return checked_result();
+    const double search_end = util::global_elapsed_seconds();
+    const Solution result = checked_result();
+    const double verify_end = util::global_elapsed_seconds();
+
+    last_setup_seconds_ = search_start - setup_start;
+    last_search_seconds_ = search_end - search_start;
+    last_verify_seconds_ = verify_end - search_end;
+    last_step_count_ = persistent_worker_->steps_taken();
+    last_init_seconds_ = persistent_worker_->init_seconds();
+    last_tries_ = persistent_worker_->tries_done();
+
+    return result;
 }
 
 Solution LocalSearchSolver::solve_with_crossover()

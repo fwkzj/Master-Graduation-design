@@ -34,6 +34,17 @@ public:
     // to go through here instead.
     void set_cutoff_time(double seconds);
 
+    // Diagnostics of the most recent improve_with_persistent_weights() call.
+    // The cutoff bounds only the search phase, so these separate the work the
+    // window actually bought (steps, search seconds) from the fixed cost paid
+    // around it (worker setup, certificate re-check).
+    long long last_step_count() const { return last_step_count_; }
+    double last_init_seconds() const { return last_init_seconds_; }
+    int last_tries() const { return last_tries_; }
+    double last_search_seconds() const { return last_search_seconds_; }
+    double last_setup_seconds() const { return last_setup_seconds_; }
+    double last_verify_seconds() const { return last_verify_seconds_; }
+
     // Number of variables in the original WCNF, i.e. the length an assignment
     // vector must have (minus the unused element 0). An embedder that keeps its
     // own copy of the instance has to size its vectors by this, not by its own
@@ -65,6 +76,12 @@ private:
     Solver backend_;
     std::unique_ptr<::LSworker> persistent_worker_;
     bool persistent_weights_initialized_ = false;
+    long long last_step_count_ = 0;
+    double last_init_seconds_ = 0.0;
+    int last_tries_ = 0;
+    double last_search_seconds_ = 0.0;
+    double last_setup_seconds_ = 0.0;
+    double last_verify_seconds_ = 0.0;
 
     void begin_search();
     void reset_persistent_worker();

@@ -139,6 +139,7 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
     double ls_start_time = util::global_elapsed_seconds();
     assert(init_solution.size() >= inst.num_vars + 1);
     total_step = 0;
+    init_seconds_total = 0.0;
     opt_unsat_weight = __LONG_LONG_MAX__;
     // Each coordinator window starts from a new assignment and has an
     // independent incumbent.  Clause weights are the sole state optionally
@@ -147,7 +148,9 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
     local_soln_feasible = 0;
     for (tries = 1; tries < max_tries; ++tries)
     {
+        const double init_start = util::global_elapsed_seconds();
         init(init_solution, preserve_clause_weights);
+        init_seconds_total += util::global_elapsed_seconds() - init_start;
         long long local_opt = __LONG_LONG_MAX__;
         max_flips = max_non_improve_flip;
         for (step = 1; step < max_flips; ++step)

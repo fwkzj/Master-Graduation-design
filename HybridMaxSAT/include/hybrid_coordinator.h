@@ -78,6 +78,16 @@ struct RoundEvent {
     long long spb_ub = -1;
     long long cash_ub_after_spb = -1;
     HybridBoundResult cash_bound_result = HybridBoundResult::NotImproved;
+    // Evidence that the window ran a real search instead of only paying the
+    // fixed cost around it: flips actually executed, and how the wall time
+    // inside the call split between setup, search and certificate re-check.
+    long long spb_steps = 0;
+    int spb_tries = 0;
+    double spb_init_seconds = 0.0;
+    double spb_call_seconds = 0.0;
+    double spb_search_seconds = 0.0;
+    double spb_setup_seconds = 0.0;
+    double spb_verify_seconds = 0.0;
 };
 
 // Owns one SPB object for one instance. The object retains adaptive clause

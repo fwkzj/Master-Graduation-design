@@ -39,6 +39,11 @@ class LSworker
 	ReducedInstance *reduceInst = nullptr;
 	//steps and time
 	long long total_step = 0;
+	// Seconds spent inside init() during the most recent search call. init()
+	// rebuilds scores, satisfaction counts and the candidate stack from
+	// scratch every try, so on a multi-gigabyte instance it can consume the
+	// whole window before a single flip happens.
+	double init_seconds_total = 0.0;
 	int tries;
 	int max_tries;
 	unsigned int max_flips;
@@ -161,6 +166,12 @@ class LSworker
 	void set_solver(Solver *s){solver = s;}
 	void set_reduce_instance(ReducedInstance *rInst){reduceInst = rInst;}
 	void set_cutoff_time(int time){cutoff_time = time;}
+	// Flips performed by the most recent search call. The embedding facade
+	// records it so a window can be shown to have bought real search rather
+	// than only setup time.
+	long long steps_taken() const { return total_step; }
+	double init_seconds() const { return init_seconds_total; }
+	int tries_done() const { return tries; }
 	void free_memory();
 
 	Solution local_search_with_decimation();
