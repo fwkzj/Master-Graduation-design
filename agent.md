@@ -33,6 +33,15 @@
 - 同步粒度是「一个可审查阶段」，不要积压多日再推。
 - 一切同步走 git。**禁止用 `scp` 或手工拷贝覆盖对端文件**：那会让文件一致而历史分叉，此后无法判断哪一份才是权威。
 - 提交前确认工作树状态符合预期；供批次使用的提交必须是干净的，见「实验必须绑定提交」。
+- 本地到 GitHub 的连接只能走 IPv6 的 443 端点，且传输较大文件时会被重置。**本地提交后若直接 `git push origin main` 失败，改走服务器中转**：
+
+  ```bash
+  # 本地 -> 服务器（同一网段，稳定）
+  git push ssh://fwkzj@222.20.99.55/home/fwkzj/HybridAlgorithm main:refs/heads/import-reports
+  # 服务器 -> GitHub
+  cd /home/fwkzj/HybridAlgorithm
+  git merge --ff-only import-reports && git push origin main && git branch -D import-reports
+  ```
 
 ### 批次运行时服务器冻结
 
