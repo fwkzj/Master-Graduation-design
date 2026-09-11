@@ -67,6 +67,13 @@ struct HybridSchedule {
     // one retry four windows later, and a second miss stops handoffs for the
     // rest of the run and gives the time back to CASH.
     bool selective = false;
+    // A2: inject the verified SPB model as CDCL decision phases.
+    bool phase_hint = false;
+    // Hand off only when the next hardening threshold is within this percentage
+    // of the current upper bound: a round that cannot cross the threshold
+    // cannot change the exact search, so the time is better left to CASH.
+    bool threshold_gate = false;
+    double gate_percent = 5.0;
     // Fraction of the end-to-end budget to wait before the first handoff. Zero
     // starts at the first window. A late start keeps CASH uninterrupted while
     // it is still hardening soft clauses cheaply on its own.
@@ -149,6 +156,8 @@ class HybridCoordinator final : public HybridMaxSatCallback {
 
     // CASH reports its own bounds at every scheduling point, so the run keeps
     // an LB/UB trajectory even across the windows in which no handoff happens.
+    bool take_model_hint(std::vector<int> &values) override;
+
     void on_scheduling_point(const Int &cash_lower_bound,
                              const Int &cash_upper_bound,
                              const CashHardeningState &hardening) override;

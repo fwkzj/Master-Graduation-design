@@ -73,6 +73,9 @@ struct CashHardeningState {
     Int gap_to_next = Int_MAX;
     // Current goal interval UB - LB in raw units.
     Int goal_interval = Int_MAX;
+    // Raw upper bound, so a policy can judge how far the next hardening
+    // threshold is in relative terms.
+    Int upper_bound = Int_MAX;
 };
 
 class HybridMaxSatCallback {
@@ -117,6 +120,11 @@ class HybridMaxSatCallback {
     // Called at every scheduling point, before the window decision, whether or
     // not a handoff follows. This is what leaves an LB/UB trajectory behind for
     // runs that never hand off, e.g. the pure CASH baseline.
+    // A2: a verified assignment the embedder may inject as CDCL decision
+    // phases. Phases are heuristic preferences only: they never enter the
+    // bound state and cannot make the search unsound.
+    virtual bool take_model_hint(std::vector<int>& values) { (void)values; return false; }
+
     virtual void on_scheduling_point(const Int& current_lower_bound,
                                      const Int& current_upper_bound,
                                      const CashHardeningState&) {}

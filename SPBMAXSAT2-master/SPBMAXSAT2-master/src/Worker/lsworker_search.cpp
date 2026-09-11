@@ -176,10 +176,13 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
                     opt_time = util::global_elapsed_seconds() - ls_start_time;
                     if (target_cost >= 0 && soft_unsat_weight <= target_cost)
                     {
-                        // Reached the bound CASH already proved: this model is
-                        // optimal, so return it now instead of burning the rest
-                        // of the window.
+                        // Reached the requested target: publish it now instead
+                        // of burning the rest of the window. opt_unsat_weight has
+                        // to be updated first -- push_best_solution_to_solver()
+                        // publishes that cost, and leaving it stale made the
+                        // facade reject the model as failing verification.
                         target_reached = true;
+                        opt_unsat_weight = soft_unsat_weight;
                         for (int v = 1; v <= inst.num_vars; ++v)
                             best_soln[v] = cur_soln[v];
                         push_best_solution_to_solver();

@@ -40,7 +40,8 @@ namespace {
 // Configuration
 
 enum class Config { CASH, SPB, Hybrid, HybridNoInference, HybridNatural,
-                    HybridAdaptive, HybridSelective, HybridLate };
+                    HybridAdaptive, HybridSelective, HybridLate, HybridPhase,
+                    HybridGate };
 
 const char *config_name(Config config)
 {
@@ -54,6 +55,8 @@ const char *config_name(Config config)
     case Config::HybridAdaptive: return "HybridAdaptive";
     case Config::HybridSelective: return "HybridSelective";
     case Config::HybridLate: return "HybridLate";
+    case Config::HybridPhase: return "HybridPhase";
+    case Config::HybridGate: return "HybridGate";
     }
     return "unknown";
 }
@@ -71,6 +74,16 @@ bool parse_config(const std::string &text, Config &config)
     if (text == "HybridNatural")
     {
         config = Config::HybridNatural;
+        return true;
+    }
+    if (text == "HybridGate")
+    {
+        config = Config::HybridGate;
+        return true;
+    }
+    if (text == "HybridPhase")
+    {
+        config = Config::HybridPhase;
         return true;
     }
     if (text == "HybridLate")
@@ -706,6 +719,23 @@ void run_hybrid(const Options &options, RunSummary &summary)
     // buys little and costs a window.
     if (options.config == Config::HybridLate)
         schedule.start_fraction = 0.5;
+    // HybridPhase is HybridLate plus A2: the verified SPB model is injected as
+    // CDCL decision phases at every handoff.
+    if (options.config == Config::HybridPhase)
+    {
+        schedule.selective = true;
+        schedule.start_fraction = 0.5;
+        schedule.phase_hint = true;
+    }
+    // HybridGate never cuts a CASH SAT call and only hands off when the next
+    // hardening threshold is within reach, so the handoff can actually change
+    // the exact search instead of only moving a number.
+    if (options.config == Config::HybridGate)
+    {
+        schedule.preemptive = false;
+        schedule.threshold_gate = true;
+        schedule.start_fraction = 0.3;
+    }
 
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
     // that is the whole point of the handoff. The default (0) means the SCIP
@@ -907,6 +937,8 @@ int main(int argc, char *argv[])
         case Config::HybridAdaptive:
         case Config::HybridSelective:
         case Config::HybridLate:
+        case Config::HybridPhase:
+        case Config::HybridGate:
             run_hybrid(g_options, g_summary);
             break;
         }

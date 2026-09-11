@@ -226,9 +226,20 @@ int (*HybridCoordinator::cash_terminator())(void *)
 bool HybridCoordinator::should_run(double)
 {
     ensure_started();
-    return !stopped_ &&
-           wall_elapsed() < schedule_.total_budget_seconds &&
-           wall_now() >= next_spb_wall_;
+    if (stopped_ || wall_elapsed() >= schedule_.total_budget_seconds)
+        return false;
+    if (wall_now() < next_spb_wall_)
+        return false;
+    if (schedule_.threshold_gate && schedule_.gate_percent > 0.0) {
+        const long long gap = to_log_value(pending_hardening_.gap_to_next);
+        const long long ub = to_log_value(pending_hardening_.upper_bound);
+        if (gap <= 0 || ub <= 0)
+            return false;
+        const double relative = 100.0 * (double)gap / (double)ub;
+        if (relative > schedule_.gate_percent)
+            return false;
+    }
+    return true;
 }
 
 bool HybridCoordinator::should_stop(double)
@@ -428,6 +439,17 @@ void HybridCoordinator::note_round_outcome(bool productive)
     const double factor = std::pow(2.0, static_cast<double>(barren_rounds_));
     next_spb_wall_ =
         last_round_end_wall_ + schedule_.cash_window_seconds * factor;
+}
+
+bool HybridCoordinator::take_model_hint(std::vector<int> &values)
+{
+    if (!schedule_.phase_hint)
+        return false;
+    std::lock_guard<std::mutex> guard(certificate_mutex_);
+    if (!best_spb_certificate_.feasible || best_spb_certificate_.assignment.empty())
+        return false;
+    values = best_spb_certificate_.assignment;
+    return true;
 }
 
 void HybridCoordinator::on_scheduling_point(const Int &cash_lower_bound,

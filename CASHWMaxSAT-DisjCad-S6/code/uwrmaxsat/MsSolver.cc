@@ -1047,6 +1047,7 @@ void MsSolver::maxsat_solve(solve_Command cmd)
         hybrid_cache_gcd = goal_gcd;
         hybrid_cache_lb_raw = lb_raw;
         hybrid_cache_ub_raw = ub_raw;
+        hardening.upper_bound = ub_raw;
         hybrid_cache_hardening = hardening;
         hybrid_cache_valid = true;
         }
@@ -1099,6 +1100,19 @@ void MsSolver::maxsat_solve(solve_Command cmd)
             }
           }
           hybrid_callback->on_upper_bound_result(bound_result, current_lower_bound);
+
+          // A2: steer the next CDCL calls with the assignment SPB just had
+          // verified. Only the original variables carry over; CASH relaxation
+          // and sorter variables keep whatever polarity they already had.
+          std::vector<int> hint;
+          if (hybrid_callback->take_model_hint(hint)) {
+            const int limit = std::min<int>(pb_n_vars, int(hint.size()) - 1);
+            for (int v = 0; v < limit; ++v) {
+              const int value = hint[v + 1];
+              if (value == 0 || value == 1)
+                sat_solver.setPolarity(v, LBOOL(bool(value)));
+            }
+          }
         }
       }
 #ifdef USE_SCIP
