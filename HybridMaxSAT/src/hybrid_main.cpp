@@ -40,7 +40,7 @@ namespace {
 // Configuration
 
 enum class Config { CASH, SPB, Hybrid, HybridNoInference, HybridNatural,
-                    HybridAdaptive, HybridSelective };
+                    HybridAdaptive, HybridSelective, HybridLate };
 
 const char *config_name(Config config)
 {
@@ -53,6 +53,7 @@ const char *config_name(Config config)
     case Config::HybridNatural: return "HybridNatural";
     case Config::HybridAdaptive: return "HybridAdaptive";
     case Config::HybridSelective: return "HybridSelective";
+    case Config::HybridLate: return "HybridLate";
     }
     return "unknown";
 }
@@ -70,6 +71,11 @@ bool parse_config(const std::string &text, Config &config)
     if (text == "HybridNatural")
     {
         config = Config::HybridNatural;
+        return true;
+    }
+    if (text == "HybridLate")
+    {
+        config = Config::HybridLate;
         return true;
     }
     if (text == "HybridSelective")
@@ -689,7 +695,13 @@ void run_hybrid(const Options &options, RunSummary &summary)
     // HybridSelective keeps the preemptive window but decides *whether* to hand
     // off from the previous round outcome: continue while it pays, one retry
     // after a miss, then give the rest of the budget to CASH.
-    schedule.selective = options.config == Config::HybridSelective;
+    schedule.selective = options.config == Config::HybridSelective ||
+                         options.config == Config::HybridLate;
+    // HybridLate waits until the middle of the budget before the first handoff:
+    // CASH hardening happens inside its own first window, so an early handoff
+    // buys little and costs a window.
+    if (options.config == Config::HybridLate)
+        schedule.start_fraction = 0.5;
 
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
     // that is the whole point of the handoff. The default (0) means the SCIP
@@ -883,6 +895,7 @@ int main(int argc, char *argv[])
         case Config::HybridNatural:
         case Config::HybridAdaptive:
         case Config::HybridSelective:
+        case Config::HybridLate:
             run_hybrid(g_options, g_summary);
             break;
         }

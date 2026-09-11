@@ -94,7 +94,8 @@ Solution LocalSearchSolver::improve(const std::vector<int> &initial_solution)
 }
 
 Solution LocalSearchSolver::improve_with_persistent_weights(
-    const std::vector<int> &initial_solution)
+    const std::vector<int> &initial_solution,
+    long long target_cost)
 {
     validate_initial_solution(initial_solution);
     if (backend_.originInstance.has_empty_hard_clause)
@@ -112,6 +113,7 @@ Solution LocalSearchSolver::improve_with_persistent_weights(
         persistent_worker_->settings(backend_.settings);
         persistent_worker_->set_cutoff_time(backend_.settings.cutoff_time);
     }
+    persistent_worker_->set_target_cost(target_cost);
     const double search_start = util::global_elapsed_seconds();
 
     std::vector<int> working_solution = initial_solution;
@@ -130,6 +132,7 @@ Solution LocalSearchSolver::improve_with_persistent_weights(
     last_init_seconds_ = persistent_worker_->init_seconds();
     last_best_at_seconds_ = persistent_worker_->best_at_seconds();
     last_improvements_ = persistent_worker_->improvement_count();
+    last_target_reached_ = persistent_worker_->reached_target();
     last_tries_ = persistent_worker_->tries_done();
 
     return result;

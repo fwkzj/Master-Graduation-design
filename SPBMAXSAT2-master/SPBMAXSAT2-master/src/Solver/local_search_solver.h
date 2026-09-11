@@ -42,6 +42,7 @@ public:
     double last_init_seconds() const { return last_init_seconds_; }
     double last_best_at_seconds() const { return last_best_at_seconds_; }
     int last_improvements() const { return last_improvements_; }
+    bool last_target_reached() const { return last_target_reached_; }
     int last_tries() const { return last_tries_; }
     double last_search_seconds() const { return last_search_seconds_; }
     double last_setup_seconds() const { return last_setup_seconds_; }
@@ -66,8 +67,12 @@ public:
     // The assignment-dependent state is rebuilt for every call.  This is the
     // interface used by the CASH/SPB coordinator: the returned solution is
     // still checked against the original WCNF before it is exposed.
+    // `target_cost` is the cost CASH has already proved to be a lower bound:
+    // reaching it means the incumbent is optimal and the search returns early.
+    // Pass -1 for no target.
     Solution improve_with_persistent_weights(
-        const std::vector<int> &initial_solution);
+        const std::vector<int> &initial_solution,
+        long long target_cost = -1);
 
     // Run the existing solution-pool and crossover pipeline.
     Solution solve_with_crossover();
@@ -82,6 +87,7 @@ private:
     double last_init_seconds_ = 0.0;
     double last_best_at_seconds_ = 0.0;
     int last_improvements_ = 0;
+    bool last_target_reached_ = false;
     int last_tries_ = 0;
     double last_search_seconds_ = 0.0;
     double last_setup_seconds_ = 0.0;

@@ -67,6 +67,10 @@ struct HybridSchedule {
     // one retry four windows later, and a second miss stops handoffs for the
     // rest of the run and gives the time back to CASH.
     bool selective = false;
+    // Fraction of the end-to-end budget to wait before the first handoff. Zero
+    // starts at the first window. A late start keeps CASH uninterrupted while
+    // it is still hardening soft clauses cheaply on its own.
+    double start_fraction = 0.0;
     // Progress-based scheduling. When true the gap before the next
     // handoff doubles for every consecutive round in which SPB produced
     // nothing CASH could use, and resets the moment one of its bounds is
@@ -103,6 +107,10 @@ struct RoundEvent {
     long long harden_goal_interval = -1;
     std::string schedule_reason;
     double next_handoff_in = 0.0;
+    // The cost SPB was told is already achievable (CASH own lower bound), and
+    // whether its search reached it. Reaching it makes the model optimal.
+    long long spb_target = -1;
+    bool spb_target_reached = false;
     long long cash_lb_before_spb = -1;
     long long cash_lb_after_spb = -1;
     long long spb_steps = 0;

@@ -180,7 +180,10 @@ void HybridCoordinator::ensure_started()
     {
         started_ = true;
         instance_start_wall_ = wall_now();
-        next_spb_wall_ = instance_start_wall_ + schedule_.cash_window_seconds;
+        const double first_handoff = std::max<double>(
+            schedule_.cash_window_seconds,
+            schedule_.start_fraction * schedule_.total_budget_seconds);
+        next_spb_wall_ = instance_start_wall_ + first_handoff;
         arm_deadline();
     }
 }
@@ -293,9 +296,14 @@ bool HybridCoordinator::find_upper_bound(
         std::min<double>(schedule_.spb_window_seconds, remaining));
 
     const double spb_call_start = wall_now();
-    const Solution result =
-        spb_solver_.improve_with_persistent_weights(*initial_assignment);
+    // CASH own lower bound is already achievable: hand it to SPB as the target
+    // so the search can stop the moment it produces an optimal model.
+    const long long target_cost = to_log_value(cash_lower_bound);
+    const Solution result = spb_solver_.improve_with_persistent_weights(
+        *initial_assignment, target_cost);
     const double spb_call_end = wall_now();
+    event.spb_target = target_cost;
+    event.spb_target_reached = spb_solver_.last_target_reached();
     event.spb_steps = spb_solver_.last_step_count();
     event.spb_init_seconds = spb_solver_.last_init_seconds();
     event.spb_best_at_seconds = spb_solver_.last_best_at_seconds();
@@ -487,6 +495,8 @@ void HybridCoordinator::flush_pending_events()
                    << ",\"cash_ub_after_spb\":" << event.cash_ub_after_spb
                    << ",\"cash_bound_result\":\""
                    << bound_result_name(event.cash_bound_result) << "\""
+                   << ",\"spb_target\":" << event.spb_target
+                   << ",\"spb_target_reached\":" << (event.spb_target_reached ? "true" : "false")
                    << ",\"spb_steps\":" << event.spb_steps
                    << ",\"spb_tries\":" << event.spb_tries
                    << ",\"spb_init_seconds\":" << event.spb_init_seconds

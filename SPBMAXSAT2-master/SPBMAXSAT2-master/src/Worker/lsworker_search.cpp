@@ -141,6 +141,7 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
     total_step = 0;
     init_seconds_total = 0.0;
     opt_improvements = 0;
+    target_reached = false;
     opt_unsat_weight = __LONG_LONG_MAX__;
     // Each coordinator window starts from a new assignment and has an
     // independent incumbent.  Clause weights are the sole state optionally
@@ -169,6 +170,17 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
                 {
                     opt_improvements++;
                     opt_time = util::global_elapsed_seconds() - ls_start_time;
+                    if (target_cost >= 0 && soft_unsat_weight <= target_cost)
+                    {
+                        // Reached the bound CASH already proved: this model is
+                        // optimal, so return it now instead of burning the rest
+                        // of the window.
+                        target_reached = true;
+                        for (int v = 1; v <= inst.num_vars; ++v)
+                            best_soln[v] = cur_soln[v];
+                        push_best_solution_to_solver();
+                        return;
+                    }
                     //cout << "o " << soft_unsat_weight + basic_cost << " " << total_step << " " << tries << " " << opt_time << endl;
                     //cout << "o " << soft_unsat_weight << " " << opt_time << endl;
                     opt_unsat_weight = soft_unsat_weight;

@@ -48,6 +48,11 @@ class LSworker
 	// started) and how many times it improved. Together they say whether a
 	// window is being used or merely paid for.
 	int opt_improvements = 0;
+	// Stop as soon as the incumbent reaches this cost. CASH hands over its own
+	// lower bound, so reaching it means the solution is optimal and there is no
+	// point spending the rest of the window. -1 disables the check.
+	long long target_cost = -1;
+	bool target_reached = false;
 	int tries;
 	int max_tries;
 	unsigned int max_flips;
@@ -177,6 +182,8 @@ class LSworker
 	double init_seconds() const { return init_seconds_total; }
 	double best_at_seconds() const { return opt_time; }
 	int improvement_count() const { return opt_improvements; }
+	void set_target_cost(long long c){ target_cost = c; }
+	bool reached_target() const { return target_reached; }
 	int tries_done() const { return tries; }
 	void free_memory();
 
