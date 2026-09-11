@@ -1019,6 +1019,8 @@ void MsSolver::maxsat_solve(solve_Command cmd)
       // handoff follows, so even a run that never hands off leaves an LB/UB
       // trajectory behind.
       if (hybrid_callback != nullptr) {
+        if (!hybrid_cache_valid || LB_goalvalue != hybrid_cache_lb ||
+            UB_goalvalue != hybrid_cache_ub || goal_gcd != hybrid_cache_gcd) {
         const Int lb_raw = LB_goalvalue == Int_MAX ?
             Int_MAX : LB_goalvalue * goal_gcd;
         const Int ub_raw = UB_goalvalue == Int_MAX ?
@@ -1040,7 +1042,16 @@ void MsSolver::maxsat_solve(solve_Command cmd)
         if (LB_goalvalue != Int_MAX && UB_goalvalue != Int_MAX)
           hardening.goal_interval = (UB_goalvalue - LB_goalvalue) * goal_gcd;
 
-        hybrid_callback->on_scheduling_point(lb_raw, ub_raw, hardening);
+        hybrid_cache_lb = LB_goalvalue;
+        hybrid_cache_ub = UB_goalvalue;
+        hybrid_cache_gcd = goal_gcd;
+        hybrid_cache_lb_raw = lb_raw;
+        hybrid_cache_ub_raw = ub_raw;
+        hybrid_cache_hardening = hardening;
+        hybrid_cache_valid = true;
+        }
+        hybrid_callback->on_scheduling_point(hybrid_cache_lb_raw, hybrid_cache_ub_raw,
+                                             hybrid_cache_hardening);
       }
       if (hybrid_callback != nullptr && hybrid_callback->should_stop(cpuTime())) {
         asynch_interrupt = true;

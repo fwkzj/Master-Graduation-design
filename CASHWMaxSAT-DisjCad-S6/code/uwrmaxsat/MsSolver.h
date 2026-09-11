@@ -285,6 +285,16 @@ class MsSolver final : public PbSolver {
                 soft_cls.push(Pair_new(weight, ps_copy)); }
 
     void    harden_soft_cls(Minisat::vec<Lit>& assump_ps, vec<Int>& assump_Cs, vec<weight_t>& sorted_assump_Cs, IntLitQueue& delayed_assump, Int& delayed_assump_sum);
+
+    // The raw bounds and the hardening snapshot handed to the hybrid callback
+    // depend only on (LB_goalvalue, UB_goalvalue, goal_gcd), which change a few
+    // times per run, while the callback is consulted once per scheduling point.
+    // Caching them removes per-iteration big-integer work from CASH own loop.
+    bool               hybrid_cache_valid = false;
+    Int                hybrid_cache_lb, hybrid_cache_ub;
+    weight_t           hybrid_cache_gcd = 0;
+    Int                hybrid_cache_lb_raw, hybrid_cache_ub_raw;
+    CashHardeningState hybrid_cache_hardening;
     void    optimize_last_constraint(vec<Linear*>& constrs, Minisat::vec<Lit>& assump_ps, Minisat::vec<Lit>& new_assump);
 
 #ifdef USE_SCIP
