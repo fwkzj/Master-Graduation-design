@@ -10,9 +10,9 @@
 
 | 配置 | 行为 | 说明 |
 |---|---|---|
-| `CASH` | CASH 的 15 秒窗口连续运行 600 秒，从不调用 SPB | 精确基线，即混合协议去掉 SPB 一轮 |
+| `CASH` | CASH 的 30 秒窗口连续运行 600 秒，从不调用 SPB | 精确基线，即混合协议去掉 SPB 一轮 |
 | `SPB` | 独立 SPB 连续运行 600 秒 | 局部搜索基线，只回数值 UB |
-| `Hybrid` | 15s CASH / 3s SPB 暂停-恢复协同 | 正式混合配置，用 CASH 推理值初始化 SPB |
+| `Hybrid` | 30s CASH / 10s SPB 暂停-恢复协同 | 正式混合配置，用 CASH 推理值初始化 SPB |
 | `Hybrid-NoInference` | 同 `Hybrid`，但 SPB 每轮全部随机初始化 | 消融：不把 CASH 推理值用于 SPB 初始解 |
 
 四配置构成**消融阶梯**而非四个互不相关的求解器：`CASH` 与 `Hybrid` 只差 SPB 轮次，因此
@@ -21,6 +21,9 @@
 真正研究的部件——根本不会运行。
 
 不增加「重置 SPB 自适应子句权重」的消融。每个实例、每种配置、每次重复使用同一实例派生种子。
+
+调试阶段只运行 `CASH` 与 `Hybrid` 两个配置，且只使用种子 `20260909`；`SPB` 与各消融配置留到正式阶段。
+时间片自 2026-09-11 起为 CASH 30 秒 / SPB 10 秒，理由见 `agent.md`「时间片为何从 15/3 改为 30/10」。
 
 ## 3. 种子与随机性
 
@@ -33,24 +36,24 @@
 
 - 每实例端到端预算 600 秒，计入 CASH、SPB 与交接开销。
 - 600 秒到达后不启动下一模块，当前模块完整结束后停止：
-  - 当前模块为 SPB：完整跑完该 3 秒窗口、接收其 UB 一次后结束。
-  - 当前模块为 CASH：完成该 15 秒窗口后结束。
-- 调试 50 实例同样使用 600 秒与完整协议。
+  - 当前模块为 SPB：完整跑完该 10 秒窗口、接收其 UB 一次后结束。
+  - 当前模块为 CASH：完成该 30 秒窗口后结束。
+- 调试 50 实例同样使用 600 秒与完整协议，但只跑 `CASH` 与 `Hybrid`、单种子 `20260909`。
 - CASH 一旦证明最优，立即结束该实例，不再启动 SPB。这条对 CASH 的 ILP 分量（SCIP）同样
   成立：SCIP 在自身 15 秒时限内证出最优时，实例同样立即结束，`exit_reason` 记为
   `optimum_scip` 以区别于 CDCL 推出的 `optimum`（见 §8.3）。
 
 ### 4.1 窗口的四道闸门
 
-一个「15 秒 CASH 窗口」要真正成立，CASH 必须在 15 秒内回到它的调度点。实测发现有四处
+一个「CASH 窗口」要真正成立，CASH 必须在窗口长度内回到它的调度点。实测发现有四处
 会各自吞掉整个预算、使调度点不再被访问（详见 `docs/experiments/` 的过程记录）：
 
 1. **SCIP 首调用**：CASH 在进入自己的 CDCL 循环之前，先把实例交给 SCIP，且该调用同步执行、
    默认**无时限**。大实例上 SCIP 连预处理都跑不完，于是 600 秒全耗在这里，混合协议一次都
-   不会被触发。因此 `opt_scip_cpu` 被设为 CASH 窗口长度（15 秒），四种配置一致。
-2. **SCIP 重试抬时限**：SCIP 打满 15 秒且上下界 gap<10% 时，CASH 的重试启发式会把
+   不会被触发。因此 `opt_scip_cpu` 被设为 CASH 窗口长度（当前 30 秒），四种配置一致。
+2. **SCIP 重试抬时限**：SCIP 打满窗口时限且上下界 gap<10% 时，CASH 的重试启发式会把
    `opt_scip_cpu` 加 `opt_scip_cpu_add`（600 秒），等于把窗口悄悄改成 615 秒、让 SCIP 重新
-   吞掉预算。嵌入模式（`opt_embedded_runner`）已禁用这条重试，SCIP 始终只拿 15 秒。
+   吞掉预算。嵌入模式（`opt_embedded_runner`）已禁用这条重试，SCIP 始终只拿窗口时限。
 3. **单次 SAT 调用**：由 `cash_deadline_reached` 终结器在窗口边界让 CaDiCaL 返回。
 4. **进程级兜底**：调度脚本用 `timeout` 包住每次运行（预算 +15 秒，再 30 秒后 SIGKILL），
    运行器自身另有 budget+3 秒的看门狗线程保证一定写出记录。
@@ -72,7 +75,7 @@ CASH 会在约 1/4 预算处停下。
 ## 5. 数据集与抽样
 
 - 数据只读：`/data/dataset/Maxsat/Complete/`，禁止修改其中任何文件。
-- 调试阶段：从 `MSE23W` 均匀抽取 50 个 `.wcnf`。解析失败的候选记录原因、跳过并从剩余文件补抽，直到凑满 50 个可运行实例；最终清单须纳入版本控制。
+- 调试阶段：从 `MSE23W` 均匀抽取 50 个 `.wcnf`。解析失败的候选记录原因、跳过并从剩余文件补抽，直到凑满 50 个可运行实例；最终清单须纳入版本控制。调试批次只跑 `CASH` 与 `Hybrid`、单种子 `20260909`（100 次运行）。
 - 正式阶段：`MSE23W` 与 `MSE24W` 的全部加权实例，跑上述四配置 × 三次重复。
 - 调试批次任何运行出现崩溃、解析错误、非法界值或日志不一致，立即停止整个批次；修复后从头重跑。
 
@@ -106,9 +109,9 @@ hybridmaxsat --config CASH|SPB|Hybrid|HybridNoInference --seed N --budget SECOND
              [--instance-id RELATIVE_PATH] <input.wcnf> <events.jsonl>
 ```
 
-默认值为 `--config Hybrid --seed 20260909 --budget 600 --cash-window 15 --spb-window 3`；
+默认值为 `--config Hybrid --seed 20260909 --budget 600 --cash-window 30 --spb-window 10`；
 `--scip-cpu 0`（默认）表示由 CASH 窗口长度推导。窗口与 SCIP 时限可由调度脚本统一改写，
-但正式批次固定使用 15/3/15。
+但正式批次固定使用 30/10/30。
 
 WCNF 从只读数据路径读取；实例相对路径（如 `MSE23W/xxx.wcnf`）作为 `instance` 字段写入事件，用于跨配置、跨重复对齐。
 
@@ -125,6 +128,20 @@ WCNF 从只读数据路径读取；实例相对路径（如 `MSE23W/xxx.wcnf`）
 | `spb_ub` | number | SPB 本轮最佳数值 UB（`-1` 表示本轮无可行解） |
 | `cash_ub_after_spb` | number | CASH 处理后的 UB（未改善则等于轮前 UB） |
 | `cash_bound_result` | string | `accepted` / `not_improved` / `invalid_negative` / `invalid_unit_conversion` / `invalid_below_lb` |
+
+以上字段只说明 SPB 交回了什么界，不能说明 SPB 是否真的搜索过。以下字段用来证明一个窗口买到了真实搜索：
+
+| 字段 | 类型 | 含义 |
+|---|---|---|
+| `spb_steps` | int | 本轮局部搜索实际执行的翻转次数（工作器的 `total_step`）。超时退出时该值形如 `1000k − 1`，最小值 999，等价于「第一次时间检查点就退出」。 |
+| `spb_tries` | int | 本轮执行到第几次 try；`init()` 每个 try 都要重做一次。 |
+| `spb_init_seconds` | number | 本轮所有 `init()` 的累计耗时。 |
+| `spb_search_seconds` | number | 本轮局部搜索调用（`init` + 翻转）的总墙钟耗时。 |
+| `spb_setup_seconds` | number | 本轮在搜索前构造持久 worker 的耗时；只有第一次交接非零，大实例上为 2.5~7.5 秒。 |
+| `spb_verify_seconds` | number | 本轮把返回模型按原始 WCNF 复核的耗时。 |
+| `spb_call_seconds` | number | 本轮 SPB 调用的总墙钟耗时；超过 `spb_window_seconds` 的部分从 CASH 的窗口里扣。 |
+
+判读规则：`spb_steps` 只有几百到几千、且 `spb_setup_seconds` 或 `spb_init_seconds` 接近窗口长度，说明这个窗口被初始化吃光，没有真正搜索；这样的轮次在统计「SPB 贡献」时必须单独归因，不能与「搜索了但没找到更好解」混为一谈。
 
 ### 8.3 输出：运行完成行（单行 JSON）
 
@@ -189,7 +206,7 @@ runs/<批次>/summary.tsv|.md     # 批次汇总
 
 ## 9. 并行执行
 
-服务器 S122 有 256 核。实验以**并行度 32** 调度：同一时刻最多 32 个实例在跑（每个实例单线程，不跨核并行）。由运行/汇总脚本按 `configs/` 中的实例清单与种子展开任务、限流到 32、并把每个任务的 stdout/stderr 与 JSONL 落到 `runs/` 下独立目录；任务失败不拖垮批次，但进入 `runs/` 前应先通过单实例冒烟与 Parser Gate。
+服务器 S122 有 256 核。每个实例单线程、不跨核并行，并行度由批次的 `--workers` 指定并写进 `meta.json`（历史批次用过 32、64、96；本轮 50 实例调试用 96）。由运行/汇总脚本按实例清单与配置/种子展开任务、限流到 `--workers`、并把每个任务的 stdout/stderr 与 JSONL 落到 `runs/` 下独立目录；任务失败不拖垮批次，但进入 `runs/` 前应先通过单实例冒烟与 Parser Gate。
 
 ## 10. 前置条件（Gate）
 

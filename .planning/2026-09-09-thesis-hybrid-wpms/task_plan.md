@@ -47,47 +47,47 @@
 
 ### Phase 2: Parser Gate and semantic validation
 
-**Status:** in_progress
+**Status:** complete（2026-09-10 在 S122 通过；Stage 0 四配置界值复核全部与手算最优一致）
 
-- [ ] 为传统 WCNF 编写独立解析与候选验证器。
-- [ ] 修复 SPB 的标准 WCNF 头部读取、内存分配和硬子句分类。
-- [ ] 用手工小实例、CASH 样例和拒绝测试验证修复。
-- [ ] 定义支持的格式边界；将未支持的扩展 WCNF 明确拒绝。
+- [x] 为传统 WCNF 编写独立解析与候选验证器。
+- [x] 修复 SPB 的标准 WCNF 头部读取、内存分配和硬子句分类。
+- [x] 用手工小实例、CASH 样例和拒绝测试验证修复。
+- [x] 定义支持的格式边界；将未支持的扩展 WCNF 明确拒绝。
 
 **Exit criteria:** SPB 返回模型的独立成本与 CASH 小实例最优值一致或不低于最优值；当前 `CASH=1611 / SPB=0` 的样例差异消失。
 
 ### Phase 3: Reproducible baseline framework
 
-**Status:** pending
+**Status:** complete（2026-09-10/11；`manifests/`、`scripts/run_batch.py`、`runs/` 与 `meta.json` 已绑定提交与二进制 sha1）
 
-- [ ] 建立可版本化的构建、配置、实例清单和运行目录。
-- [ ] 实现 CASH 输出解析与模型复核。
-- [ ] 用 SPB 静态库驱动输出模型、种子和结构化统计。
-- [ ] 冻结调试集、开发集和测试集，保存哈希与分层信息。
+- [x] 建立可版本化的构建、配置、实例清单和运行目录。
+- [x] 实现 CASH 输出解析与模型复核。
+- [x] 用 SPB 静态库驱动输出模型、种子和结构化统计。
+- [x] 冻结调试集（`debug50_MSE23W`），保存哈希与分层信息。
 
 **Exit criteria:** 同一配置、实例和种子可以重跑；B0（CASH）和 B1（SPB）产生完整结构化日志。
 
 ### Phase 4: Hybrid method implementation
 
-**Status:** pending
+**Status:** in_progress（H1/H2 已实现并跑完调试与全量；H3 的 `HybridAdaptive` 已实现，尚未全量评估）
 
-- [ ] 实现 `IncumbentStore`、候选来源记录和失败回退。
-- [ ] 实现 H0：验证式热启动。
-- [ ] 在小实例测试 CASH `-goal` 的真实语义；不安全则放弃该注入路径。
-- [ ] 实现 Exact-to-LS 投影：仅保留原变量，未确定变量用 `-1`，并为每项承诺保留推理来源。
-- [ ] 实现 H1：精确部分赋值作为 SPB `improve()` 初始解。
-- [ ] 实现 H2：计入重启成本的双向串行时间片共享。
-- [ ] 实现 H3：只基于已公开、可记录指标的确定性调度。
+- [x] 实现候选来源记录、拒绝规则与 CASH 原状态回退。
+- [x] 实现 Exact-to-LS 投影：仅保留原变量，未确定变量用 `-1`。
+- [x] 实现 H1：精确部分赋值作为 SPB 持久化局部搜索的初始解（含私有模型证书与原始 WCNF 复核）。
+- [x] 实现 H2：计入重启成本的双向串行时间片共享（抢占式 15/3 与 30/10 均可运行）。
+- [x] 实现 H3：只基于已公开、可记录指标的确定性调度（`HybridAdaptive` 退避）。
+- [ ] 消除 SPB 窗口内的固定开销：持久 worker 预构造；`init()` 改为按赋值差异增量重建。
 
 **Exit criteria:** 每层均有单元测试、端到端测试和相对于前一层的消融配置；任何异常都能退化到 CASH 基线。
 
 ### Phase 5: Development experiments and calibration
 
-**Status:** pending
+**Status:** in_progress（2026-09-11）
 
 - [ ] 在开发集上确定总预算、时间片、停滞阈值、SPB 参数和种子数。
+      —— 已把时间片从 15/3 调为 30/10，当前正用 `debug50_c30s10`（CASH+Hybrid、单种子）验证。
 - [ ] 不查看测试集成绩的前提下冻结最终配置。
-- [ ] 记录负结果、失效实例和调参历史。
+- [x] 记录负结果、失效实例和调参历史（见 `progress.md` 2026-09-11 与 `findings.md`）。
 
 **Exit criteria:** 已冻结配置、参数选择理由和可复现实验清单。
 
@@ -112,6 +112,17 @@
 - [ ] 导师反馈两轮、预答辩修订、最终格式检查与答辩幻灯片。
 
 **Exit criteria:** 论文主张与冻结实验完全对应；任何未证实假设均不写为结果。
+
+### Phase 8: Current midterm report revision
+
+**Status:** complete
+
+- [x] 盘点现有中期报告、开题报告和最新研究材料，确定可写事实与不可写实验结果。
+- [x] 以开题报告为版式依据，核对字体、字号、标题层级、段落与页面设置。
+- [x] 更新中期报告正文；实验进展暂不填写，并保留“当前实验效果”“已尝试改进方法”的后续填写位置。
+- [x] 渲染并逐页检查最终 DOCX，修复排版问题。
+
+**Exit criteria:** 中期报告内容与当前项目状态一致，未虚构实验结果，版式与开题报告一致，并通过逐页视觉检查。
 
 ## Timeline (24 weeks, adjustable to the school deadline)
 
@@ -162,7 +173,9 @@
 
 ## Next Step
 
-服务器恢复后，在 S122 构建并执行 Parser Gate；通过前不进入混合调度与 50 实例调试。
+1. 等 `runs/debug50_c30s10` 跑完，核对零崩溃/解析错误/非法界值，并用事件流里的 `spb_steps` 确认每一轮 SPB 是否真的搜索（判读规则见 `experiment.md` §8.2）。
+2. 若第一轮仍被实例深拷贝吃掉（预计 781 MB 的 `shiftdesign` 与 486 MB 的 `downcast-pmd` 会命中），实施 Phase 4 最后一项结构修复并复测。
+3. 修复后在 50 实例上比较 `spb_init_seconds` 与每窗口翻转数，再决定是否推广到全量。
 
 ## Repository Organization Maintenance (2026-09-10)
 
@@ -182,6 +195,9 @@
 | 以 Parser Gate 作为首要技术里程碑 | 当前 SPB 对标准 WCNF 的错误会污染所有后续实验 |
 | 将 CASH 设为唯一证明来源 | 当前接口和 MaxSAT 语义要求精确模块承担最优性责任 |
 | 先做串行分级融合 | 现有 CASH 没有经验证的运行期热更新接口，避免虚构在线能力 |
+| 调试阶段只跑 CASH 与 Hybrid、单种子 `20260909` | 全量已证明 SPB 与 HybridNoInference 不提供额外信息，多配置多种子只是重复成本 |
+| 时间片由 15/3 改为 30/10（2026-09-11） | 15/3 下窗口被 worker 深拷贝与 `init()` 吃光，SPB 实际未搜索；且抢占式打断使 266 次交接 0 次证明 |
+| 混合协议采用抢占式还是非抢占式暂不冻结 | 非抢占（`HybridNatural`）不亏也不赚，需在消除 SPB 窗口固定开销后重测才有意义 |
 
 ## Errors Encountered
 
@@ -190,3 +206,12 @@
 | SPB 在 CASH 样例上报告 0，而 CASH 证明 1611 | 定位为解析/硬子句语义缺陷，纳入 Phase 2 Gate |
 | 本机没有 `pdftotext`，无法读取重复 PDF 的标题页 | 不安装额外工具；按哈希确认内容相同，保留描述明确的文件名并将通用命名副本归档 |
 | PowerShell 首次误解析未加引号的 Git tree-ish | 将 `HEAD^{tree}` 和 `origin/main^{tree}` 作为带引号参数重新执行，目录树哈希验证通过 |
+| 文档渲染器首次运行未在 PATH 找到 `soffice.exe` | 正在定位工作区依赖中的捆绑 LibreOffice；不使用用户安装版替代 |
+| 预期路径中不存在捆绑 `rg.exe` | 改用 Codex 应用随附的 `rg`，确认文档运行时中确实没有 LibreOffice |
+| DOCX 检查脚本输出遇到 Windows GBK 无法编码零宽字符 | 将脚本标准输出显式设为 UTF-8 后重试 |
+| 第一次压缩 DOCX 审计输出的补丁上下文不匹配 | 读取脚本现状后按实际导入位置重新应用补丁 |
+| 动态样式审计误把字符样式当作段落样式 | 仅保留段落类型的标题和正文样式后重试 |
+| 捆绑 Python 不含 PyMuPDF `fitz` | 使用已提供的 `pypdfium2` 将 Word 导出的 PDF 转为逐页 PNG |
+| 首次生成修订稿时误在 `Run` 包装对象上调用底层属性方法 | 改为通过 `run._r.get_or_add_rPr()` 设置 OOXML 字体属性后重新生成 |
+| 首轮视觉检查把以年份开头的正文误判为一级标题 | 将一级标题识别限定为 1 至 6 的单数字章节编号，并重新生成、渲染全文 |
+| 第二轮视觉检查发现一级标题继承了旧稿的分页前属性，造成大面积页尾留白 | 在统一段落格式时显式取消分页前属性，再次生成并逐页验收 |
