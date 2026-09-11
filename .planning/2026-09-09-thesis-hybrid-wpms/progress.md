@@ -89,3 +89,12 @@
 - 分支清理：远端删除 `hybrid-cash-spb`、`local/report-progress`、`midterm-report`、`sync/implementation`、`server/code`；本地删除同名分支并移除三个 worktree（旧目录备份在 `.codex-tmp/old-worktrees/`）。删除前逐个确认已并入 `main`。
 - 验证：服务器 `ctest` 2/2 通过（Parser Gate、持久接口）；30/10 冒烟实例上 CASH 与 Hybrid 均正常，Hybrid 第一轮交回 UB 261 并被 CASH 接受。
 - 现状：服务器、本地与 GitHub 都只有 `main` = `2c3bf8c`。本地未跟踪的报告产物（`docs/reports/midterm/中期报告-匡智颉-修订版*`、`artifacts/midterm-revision/`、`artifacts/experiment-records/`）待用户决定是否入库。
+## 2026-09-11 交接前后 LB/UB 记录，与混合失效的原因
+
+- 新增记录（提交 `3bacc57`）：CASH 在每个调度点上报自身 LB/UB；每轮交接记录 before/after 两侧的 LB 与 UB；CASH 基线也写同形状的 `progress` 记录。这样事件流才能回答「同一时刻谁落后」。
+- 修正 `scripts/run_batch.py` 的轮次口径：此前把 `progress` 行也计为轮次（Hybrid 报出的 2387 轮实为 332 轮，CASH 报出 605 轮实为 0 轮）。
+- 批次 `runs/debug50_lbub`（50 实例 × {CASH, Hybrid} × 种子 `20260909`，30/10，预算 600 秒，96 并行）：100/100 完成，0 条 FAIL。
+- 结果：CASH 36/50，Hybrid 27/50；仅 CASH 证明 9 个，仅 Hybrid 证明 0 个；末态 UB 上 Hybrid 8 劣 8 优 32 平。
+- 分界线是「有没有真的交接」：未交接的 27 个运行全部证明最优；发生交接的 23 个运行里 Hybrid 0 次证明，而纯 CASH 在同一批实例上证明 9 次。
+- 机制读数：交接组里 **20/23 的 LB 在第一轮之后完全冻结**（LB 单调不减，首末相等即从未推进）；SPB 每轮 10 秒，CASH 只剩约 75% 墙钟；SPB 在 61% 的轮次给出可行解，但只有 9.6% 被接受。
+- 完整证据（含 9 个损失实例的逐时刻表与三种失效形态）见 `docs/experiments/2026-09-11-lb-ub-trajectory.md`。

@@ -237,12 +237,19 @@ def run_one(task, args, stopper, meta):
         for line in events_path.read_text(errors="replace").splitlines():
             if not line.strip():
                 continue
-            rounds += 1
             try:
-                if json.loads(line).get("spb_ub", -1) >= 0:
-                    productive_rounds += 1
+                event = json.loads(line)
             except json.JSONDecodeError:
                 problems.append(f"unparsable event: {line[:80]}")
+                continue
+            # Only handoffs are rounds. The stream also carries progress
+            # records (one per scheduling point); counting those would inflate
+            # this column for every configuration.
+            if event.get("event") != "spb_round":
+                continue
+            rounds += 1
+            if event.get("spb_ub", -1) >= 0:
+                productive_rounds += 1
 
     if record is None:
         problems.append(f"no run_complete record (exit {completed.returncode})")
