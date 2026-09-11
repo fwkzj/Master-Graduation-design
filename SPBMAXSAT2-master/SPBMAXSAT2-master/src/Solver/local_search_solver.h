@@ -40,6 +40,8 @@ public:
     // around it (worker setup, certificate re-check).
     long long last_step_count() const { return last_step_count_; }
     double last_init_seconds() const { return last_init_seconds_; }
+    double last_best_at_seconds() const { return last_best_at_seconds_; }
+    int last_improvements() const { return last_improvements_; }
     int last_tries() const { return last_tries_; }
     double last_search_seconds() const { return last_search_seconds_; }
     double last_setup_seconds() const { return last_setup_seconds_; }
@@ -78,6 +80,8 @@ private:
     bool persistent_weights_initialized_ = false;
     long long last_step_count_ = 0;
     double last_init_seconds_ = 0.0;
+    double last_best_at_seconds_ = 0.0;
+    int last_improvements_ = 0;
     int last_tries_ = 0;
     double last_search_seconds_ = 0.0;
     double last_setup_seconds_ = 0.0;

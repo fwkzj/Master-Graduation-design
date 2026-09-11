@@ -128,6 +128,8 @@ Solution LocalSearchSolver::improve_with_persistent_weights(
     last_verify_seconds_ = verify_end - search_end;
     last_step_count_ = persistent_worker_->steps_taken();
     last_init_seconds_ = persistent_worker_->init_seconds();
+    last_best_at_seconds_ = persistent_worker_->best_at_seconds();
+    last_improvements_ = persistent_worker_->improvement_count();
     last_tries_ = persistent_worker_->tries_done();
 
     return result;

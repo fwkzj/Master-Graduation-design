@@ -44,6 +44,10 @@ class LSworker
 	// scratch every try, so on a multi-gigabyte instance it can consume the
 	// whole window before a single flip happens.
 	double init_seconds_total = 0.0;
+	// When the best solution of this call was found (seconds since the search
+	// started) and how many times it improved. Together they say whether a
+	// window is being used or merely paid for.
+	int opt_improvements = 0;
 	int tries;
 	int max_tries;
 	unsigned int max_flips;
@@ -171,6 +175,8 @@ class LSworker
 	// than only setup time.
 	long long steps_taken() const { return total_step; }
 	double init_seconds() const { return init_seconds_total; }
+	double best_at_seconds() const { return opt_time; }
+	int improvement_count() const { return opt_improvements; }
 	int tries_done() const { return tries; }
 	void free_memory();
 

@@ -102,6 +102,11 @@ struct RoundEvent {
     long long spb_steps = 0;
     int spb_tries = 0;
     double spb_init_seconds = 0.0;
+    // Seconds into the window at which SPB found the solution it returned, and
+    // how many times its incumbent improved: a window whose best arrives in the
+    // first second is being paid for, not used.
+    double spb_best_at_seconds = 0.0;
+    int spb_improvements = 0;
     double spb_call_seconds = 0.0;
     double spb_search_seconds = 0.0;
     double spb_setup_seconds = 0.0;

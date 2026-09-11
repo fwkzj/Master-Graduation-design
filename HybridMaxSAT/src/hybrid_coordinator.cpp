@@ -295,6 +295,8 @@ bool HybridCoordinator::find_upper_bound(
     const double spb_call_end = wall_now();
     event.spb_steps = spb_solver_.last_step_count();
     event.spb_init_seconds = spb_solver_.last_init_seconds();
+    event.spb_best_at_seconds = spb_solver_.last_best_at_seconds();
+    event.spb_improvements = spb_solver_.last_improvements();
     event.spb_tries = spb_solver_.last_tries();
     event.spb_search_seconds = spb_solver_.last_search_seconds();
     event.spb_setup_seconds = spb_solver_.last_setup_seconds();
@@ -474,6 +476,8 @@ void HybridCoordinator::flush_pending_events()
                    << ",\"spb_steps\":" << event.spb_steps
                    << ",\"spb_tries\":" << event.spb_tries
                    << ",\"spb_init_seconds\":" << event.spb_init_seconds
+                   << ",\"spb_best_at_seconds\":" << event.spb_best_at_seconds
+                   << ",\"spb_improvements\":" << event.spb_improvements
                    << ",\"spb_call_seconds\":" << event.spb_call_seconds
                    << ",\"spb_search_seconds\":" << event.spb_search_seconds
                    << ",\"spb_setup_seconds\":" << event.spb_setup_seconds

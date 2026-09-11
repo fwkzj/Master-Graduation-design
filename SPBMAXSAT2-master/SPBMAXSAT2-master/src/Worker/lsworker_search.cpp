@@ -140,6 +140,7 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
     assert(init_solution.size() >= inst.num_vars + 1);
     total_step = 0;
     init_seconds_total = 0.0;
+    opt_improvements = 0;
     opt_unsat_weight = __LONG_LONG_MAX__;
     // Each coordinator window starts from a new assignment and has an
     // independent incumbent.  Clause weights are the sole state optionally
@@ -166,6 +167,7 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
                 }
                 if (soft_unsat_weight < opt_unsat_weight)
                 {
+                    opt_improvements++;
                     opt_time = util::global_elapsed_seconds() - ls_start_time;
                     //cout << "o " << soft_unsat_weight + basic_cost << " " << total_step << " " << tries << " " << opt_time << endl;
                     //cout << "o " << soft_unsat_weight << " " << opt_time << endl;
