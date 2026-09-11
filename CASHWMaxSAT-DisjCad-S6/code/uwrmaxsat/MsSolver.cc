@@ -267,6 +267,17 @@ template <class T> struct LT {bool operator()(T x, T y) { return x.snd->last() <
 
 static int g_strat_policy = STRAT_GEOMETRIC;
 
+// S2 controller state: a two-arm choice between the historical geometric cut
+// (arm 0) and the hardening-aligned cut (arm 1). The reward used to keep or
+// flip the arm is the lower-bound progress the previous level bought, which is
+// the quantity both policies are ultimately judged by; no extra solver budget
+// is spent measuring it.
+static int  g_adapt_arm = 1;
+static int  g_adapt_miss = 0;
+static bool g_adapt_have_last = false;
+static Int  g_adapt_last_lb;
+static Int  g_adapt_last_delta = 0;
+
 void set_strat_policy(int policy) { g_strat_policy = policy; }
 int  get_strat_policy() { return g_strat_policy; }
 
@@ -285,6 +296,16 @@ static weight_t strat_pick_boundary(const MsSolver& S,
                                     const vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls,
                                     int top_for_strat)
 {
+    if (g_strat_policy == STRAT_ADAPTIVE) {
+        const int arm = g_adapt_arm;
+        const int saved = g_strat_policy;
+        g_strat_policy = (arm == 0) ? STRAT_GEOMETRIC : STRAT_HARDEN;
+        const weight_t picked = strat_pick_boundary(S, remaining, lower_bound, geometric,
+                                                    popped_max, soft_cls, top_for_strat);
+        g_strat_policy = saved;
+        return picked;
+    }
+
     if (g_strat_policy == STRAT_HARDEN && S.LB_goalvalue != Int_MAX && S.UB_goalvalue != Int_MAX) {
         const Int interval = S.UB_goalvalue - S.LB_goalvalue;
         if (interval > 0) {
@@ -361,6 +382,16 @@ static weight_t do_stratification(MsSolver& S, vec<weight_t>& sorted_assump_Cs, 
 {
     weight_t  max_assump_Cs = 0;
     weight_t  bound;
+    if (g_strat_policy == STRAT_ADAPTIVE && !flag && S.LB_goalvalue != Int_MAX) {
+        if (g_adapt_have_last) {
+            const Int delta = S.LB_goalvalue - g_adapt_last_lb;
+            if (delta >= g_adapt_last_delta) g_adapt_miss = 0;
+            else if (++g_adapt_miss >= 2) { g_adapt_arm = 1 - g_adapt_arm; g_adapt_miss = 0; }
+            g_adapt_last_delta = delta;
+        }
+        g_adapt_last_lb = S.LB_goalvalue;
+        g_adapt_have_last = true;
+    }
     if(flag) bound = lower_bound;
     else bound = 0;
     //reportf("%ld\n", bound);

@@ -51,6 +51,7 @@ enum StratBoundaryPolicy {
     STRAT_HARDEN = 2,    // P2: cut at the current UB-LB hardening threshold
     STRAT_GAP = 3,       // P3: cut at the largest relative weight gap
     STRAT_COST = 4,      // P4: best mass per assumption, bounded level size
+    STRAT_ADAPTIVE = 5,  // S2: online switch between P0 and P2 using LB progress
 };
 
 void set_strat_policy(int policy);

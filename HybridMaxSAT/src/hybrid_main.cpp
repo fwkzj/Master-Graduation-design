@@ -786,8 +786,8 @@ Options parse_options(int argc, char *argv[])
         else if (name == "--strat")
         {
             options.strat_policy = std::stoi(value);
-            if (options.strat_policy < 0 || options.strat_policy > 4)
-                throw std::invalid_argument("--strat must be 0 geometric, 1 mass or 2 harden-aligned");
+            if (options.strat_policy < 0 || options.strat_policy > 5)
+                throw std::invalid_argument("--strat must be 0..5 (0 geometric, 1 mass, 2 harden-aligned, 3 gap, 4 cost, 5 adaptive)");
         }
         else if (name == "--budget")
         {
