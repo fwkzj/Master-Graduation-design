@@ -98,3 +98,11 @@
 - 分界线是「有没有真的交接」：未交接的 27 个运行全部证明最优；发生交接的 23 个运行里 Hybrid 0 次证明，而纯 CASH 在同一批实例上证明 9 次。
 - 机制读数：交接组里 **20/23 的 LB 在第一轮之后完全冻结**（LB 单调不减，首末相等即从未推进）；SPB 每轮 10 秒，CASH 只剩约 75% 墙钟；SPB 在 61% 的轮次给出可行解，但只有 9.6% 被接受。
 - 完整证据（含 9 个损失实例的逐时刻表与三种失效形态）见 `docs/experiments/2026-09-11-lb-ub-trajectory.md`。
+## 2026-09-11 更正：deadline 只缩不伸，之前所有抢占式混合的结论作废
+
+- 新增 `cash_deadline_in` 诊断后发现：`set_cash_deadline()` 只允许提前、从不推后截止时间，于是第一次交接之后每一轮都把同一个已过期的值写回，CaDiCaL 终结器永远回答「已超时」，**CASH 的每次 SAT 调用都在入口被判超时**，循环空转。实测：修复前第 2 轮的剩余 deadline 是 -40.01 秒。
+- 影响：`runs/debug50`、`runs/full23w`、`runs/full2cfg`、`runs/debug50_c30s10`、`runs/debug50_lbub` 的「混合不如 CASH」结论全部作废；非抢占的 `HybridNatural` 不受影响（截止时间是常量），它在调试集上 0 亏 0 赚的结论仍然可信。
+- 修复提交 `1bb0277`：窗口武装改用新的 `arm_cash_deadline()`（允许推后），`set_cash_deadline()` 保留只收紧语义供预算使用。
+- 修复后批次 `runs/debug50_deadlinefix`（50 实例，30/10，单种子，100/100 完成 0 失败）：**CASH 36/50，Hybrid 37/50**；成对仅 CASH 0、仅 Hybrid 1；修复前不证明而修复后证明的实例 10 个；交接运行 19 个中 6 个证明（修复前 0/23）；LB 在交接之间继续推进 18/19（修复前 3/23）。
+- 典型加速：`tcp_students_112_it_2` 纯 CASH 270 秒证明，混合 205 秒。也有因 10 秒 SPB 开销略慢的实例（`drmx-cryptogen_1` 55 秒对 66 秒）。
+- 详情见 `docs/experiments/2026-09-11-deadline-starves-cash.md`；此前那份 `docs/experiments/2026-09-11-lb-ub-trajectory.md` 的结论基于有缺陷的二进制，仅保留其记录字段设计与原始读数。
