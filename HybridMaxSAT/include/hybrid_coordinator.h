@@ -84,6 +84,10 @@ struct RoundEvent {
     // Bounds on both sides of the handoff: what CASH held when SPB started and
     // what it held once the round was folded in. The LB is CASH own; a round
     // can only move the UB.
+    // Seconds left on the deadline CASH was actually running under when this
+    // round started. Negative means the armed deadline had already expired, so
+    // every SAT call of the window was aborted on entry.
+    double cash_deadline_in = 0.0;
     long long cash_lb_before_spb = -1;
     long long cash_lb_after_spb = -1;
     long long spb_steps = 0;

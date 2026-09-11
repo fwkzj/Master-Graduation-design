@@ -112,6 +112,17 @@ void set_cash_deadline(double absolute_wall_seconds)
         g_cash_deadline.store(absolute_wall_seconds, std::memory_order_relaxed);
 }
 
+// Arm the terminator for the next window boundary. Unlike set_cash_deadline()
+// this may also move the deadline *forward*, and it has to: every round re-arms
+// it for the following boundary. With a deadline that can only be shortened the
+// value stays at the first window for the rest of the run, cash_deadline_reached()
+// then answers "expired" to every poll, and each later SAT call is aborted on
+// entry -- CASH is starved of all usable time instead of merely interrupted.
+void arm_cash_deadline(double absolute_wall_seconds)
+{
+    g_cash_deadline.store(absolute_wall_seconds, std::memory_order_relaxed);
+}
+
 // NOTE: measured not to bound a long call in practice. On
 // MSE23W/hs-timetabling a 20-second solve polled this exactly once, and the
 // same instance never observed the Cadical alarm `SimpSolver::limitTime`
@@ -183,7 +194,7 @@ void HybridCoordinator::arm_deadline()
     // Under the non-preemptive one the terminator only ever fires at the
     // end-to-end budget, and SPB waits for a scheduling point CASH reached
     // by itself. See HybridSchedule::preemptive for why both exist.
-    set_cash_deadline(schedule_.preemptive
+    arm_cash_deadline(schedule_.preemptive
                           ? std::min(budget_deadline, next_spb_wall_)
                           : budget_deadline);
 }
@@ -234,6 +245,8 @@ bool HybridCoordinator::find_upper_bound(
     RoundEvent event;
     event.round = ++round_;
     event.cash_seconds_before_spb = wall_elapsed();
+    event.cash_deadline_in =
+        g_cash_deadline.load(std::memory_order_relaxed) - wall_now();
     event.cash_lb_before_spb = to_log_value(cash_lower_bound);
     event.cash_ub_before_spb = to_log_value(current_upper_bound);
 
@@ -411,6 +424,7 @@ void HybridCoordinator::flush_pending_events()
                    << event.cash_seconds_before_spb
                    << ",\"propagated_original_variables\":"
                    << event.propagated_original_variables
+                   << ",\"cash_deadline_in\":" << event.cash_deadline_in
                    << ",\"cash_lb_before_spb\":" << event.cash_lb_before_spb
                    << ",\"cash_ub_before_spb\":" << event.cash_ub_before_spb
                    << ",\"spb_ub\":" << event.spb_ub
