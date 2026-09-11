@@ -92,4 +92,8 @@ HybridMaxSAT/
 
 ## 8. 当前状态
 
-服务器 S122 当前 SSH 超时。文件在本地 Git 工作树 `D:\硕士毕设` 中编写并推送 GitHub；连接恢复后，同步到 `/home/fwkzj/HybridAlgorithm`，在服务器执行构建与实验。
+截至 2026-09-10，服务器 S122 SSH 连接正常，`/home/fwkzj/HybridAlgorithm` 已有活动的 `build/`、`manifests/` 与 `runs/`；调试批次 debug50 正在运行。
+
+实现代码此前仅存在于本地与服务器的工作树中、未经版本控制。现已收进 git 并推送至 `sync/implementation` 分支，本地与服务器两侧内容经 sha256 校验逐字节一致。
+
+三处（本地 / GitHub / 服务器）如何保持一致，见 `agent.md` 的"三方协同规则"。

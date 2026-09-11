@@ -22,19 +22,24 @@ docs/project/*.local.ps1
 *.a
 *.lib
 *.exe
+/runs/
 HybridMaxSAT/runs/
 HybridMaxSAT/work/
+
+# Python bytecode: scripts/run_batch.py is versioned, its cache is not
+__pycache__/
+*.pyc
+
+# Patch residue
+*.orig
+*.rej
+
+# Per-machine editor/agent settings
+.claude/settings.local.json
+
+# Third-party sources fetched locally; too large to version
+CASHWMaxSAT-DisjCad-S6/code/scipoptsuite-8.1.0/
 
 # OS noise
 .DS_Store
 Thumbs.db
-
-# Batch runs, caches and patch leftovers (see agent.md)
-/runs/
-HybridMaxSAT/runs/
-__pycache__/
-*.pyc
-*.orig
-*.rej
-.claude/settings.local.json
-/CASHWMaxSAT-DisjCad-S6/code/scipoptsuite-8.1.0/
