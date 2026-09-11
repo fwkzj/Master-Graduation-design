@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -82,6 +83,13 @@ const char *bound_result_name(HybridBoundResult result)
     case HybridBoundResult::InvalidBelowLowerBound: return "invalid_below_lb";
     }
     return "unknown";
+}
+
+// JSON has no NaN; a non-finite measurement must not make the event stream
+// unparsable.
+double json_number(double value)
+{
+    return std::isfinite(value) ? value : 0.0;
 }
 
 std::string json_escape(const std::string &text)
@@ -306,7 +314,7 @@ bool HybridCoordinator::find_upper_bound(
     event.spb_target_reached = spb_solver_.last_target_reached();
     event.spb_steps = spb_solver_.last_step_count();
     event.spb_init_seconds = spb_solver_.last_init_seconds();
-    event.spb_best_at_seconds = spb_solver_.last_best_at_seconds();
+    event.spb_best_at_seconds = json_number(spb_solver_.last_best_at_seconds());
     event.spb_improvements = spb_solver_.last_improvements();
     event.spb_tries = spb_solver_.last_tries();
     event.spb_search_seconds = spb_solver_.last_search_seconds();

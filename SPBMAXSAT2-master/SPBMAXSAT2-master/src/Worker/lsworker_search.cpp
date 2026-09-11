@@ -142,6 +142,10 @@ void LSworker::local_search_with_init_solution(vector<int> &init_solution,
     init_seconds_total = 0.0;
     opt_improvements = 0;
     target_reached = false;
+    // opt_time is only written when a new incumbent appears; without this reset
+    // a call that finds nothing returns whatever the previous call left there
+    // (uninitialised on the first call, which serialised as -nan).
+    opt_time = 0.0;
     opt_unsat_weight = __LONG_LONG_MAX__;
     // Each coordinator window starts from a new assignment and has an
     // independent incumbent.  Clause weights are the sole state optionally
