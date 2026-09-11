@@ -60,6 +60,13 @@ struct HybridSchedule {
     // reached on its own; a window then reads as a minimum amount of CASH
     // time between two handoffs rather than a hard preemption point.
     bool preemptive = true;
+    // Selective scheduling (A3). Measured on runs/full23w_fix: an accepted
+    // round is followed by another gain 32.8% of the time, a feasible round
+    // that did not improve only 4.6%, an infeasible round 1.8%. So the handoff
+    // keeps its base cadence only while it keeps paying; the first miss buys
+    // one retry four windows later, and a second miss stops handoffs for the
+    // rest of the run and gives the time back to CASH.
+    bool selective = false;
     // Progress-based scheduling. When true the gap before the next
     // handoff doubles for every consecutive round in which SPB produced
     // nothing CASH could use, and resets the moment one of its bounds is
@@ -88,6 +95,8 @@ struct RoundEvent {
     // round started. Negative means the armed deadline had already expired, so
     // every SAT call of the window was aborted on entry.
     double cash_deadline_in = 0.0;
+    std::string schedule_reason;
+    double next_handoff_in = 0.0;
     long long cash_lb_before_spb = -1;
     long long cash_lb_after_spb = -1;
     long long spb_steps = 0;
@@ -164,6 +173,10 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     double last_round_end_wall_ = 0.0;
     // Consecutive rounds SPB could not improve. Drives the backoff.
     int barren_rounds_ = 0;
+    // Set once the selective policy has given up on handing off.
+    bool stopped_ = false;
+    // Why the schedule moved where it did; copied into the round record.
+    std::string last_schedule_reason_;
     // Throttle for the progress records; one every few seconds is plenty to
     // show whether CASH is closing the gap or standing still.
     double last_progress_wall_ = -1.0e18;

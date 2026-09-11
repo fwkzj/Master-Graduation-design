@@ -40,7 +40,7 @@ namespace {
 // Configuration
 
 enum class Config { CASH, SPB, Hybrid, HybridNoInference, HybridNatural,
-                    HybridAdaptive };
+                    HybridAdaptive, HybridSelective };
 
 const char *config_name(Config config)
 {
@@ -52,6 +52,7 @@ const char *config_name(Config config)
     case Config::HybridNoInference: return "HybridNoInference";
     case Config::HybridNatural: return "HybridNatural";
     case Config::HybridAdaptive: return "HybridAdaptive";
+    case Config::HybridSelective: return "HybridSelective";
     }
     return "unknown";
 }
@@ -69,6 +70,11 @@ bool parse_config(const std::string &text, Config &config)
     if (text == "HybridNatural")
     {
         config = Config::HybridNatural;
+        return true;
+    }
+    if (text == "HybridSelective")
+    {
+        config = Config::HybridSelective;
         return true;
     }
     if (text == "HybridAdaptive")
@@ -676,6 +682,10 @@ void run_hybrid(const Options &options, RunSummary &summary)
                           options.config != Config::HybridAdaptive;
     // HybridAdaptive is HybridNatural plus the progress-based window.
     schedule.adaptive = options.config == Config::HybridAdaptive;
+    // HybridSelective keeps the preemptive window but decides *whether* to hand
+    // off from the previous round outcome: continue while it pays, one retry
+    // after a miss, then give the rest of the budget to CASH.
+    schedule.selective = options.config == Config::HybridSelective;
 
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
     // that is the whole point of the handoff. The default (0) means the SCIP
@@ -800,7 +810,7 @@ Options parse_options(int argc, char *argv[])
 
 void print_usage()
 {
-    std::cerr << "usage: hybridmaxsat [--config CASH|SPB|Hybrid|HybridNoInference|HybridNatural|HybridAdaptive]\n"
+    std::cerr << "usage: hybridmaxsat [--config CASH|SPB|Hybrid|HybridNoInference|HybridNatural|HybridAdaptive|HybridSelective]\n"
               << "                    [--seed N] [--budget SECONDS]\n"
               << "                    [--cash-window SECONDS] [--spb-window SECONDS]\n"
               << "                    [--scip-cpu SECONDS]\n"
@@ -868,6 +878,7 @@ int main(int argc, char *argv[])
         case Config::HybridNoInference:
         case Config::HybridNatural:
         case Config::HybridAdaptive:
+        case Config::HybridSelective:
             run_hybrid(g_options, g_summary);
             break;
         }

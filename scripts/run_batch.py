@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ALL_CONFIGS = ["CASH", "SPB", "Hybrid", "HybridNoInference",
-               "HybridNatural", "HybridAdaptive"]
+               "HybridNatural", "HybridAdaptive", "HybridSelective"]
 ALL_SEEDS = [20260909, 20260910, 20260911]
 
 # Overridden from the command line by --configs/--seeds so a reduced sweep is

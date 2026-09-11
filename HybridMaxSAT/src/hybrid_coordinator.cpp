@@ -215,7 +215,8 @@ int (*HybridCoordinator::cash_terminator())(void *)
 bool HybridCoordinator::should_run(double)
 {
     ensure_started();
-    return wall_elapsed() < schedule_.total_budget_seconds &&
+    return !stopped_ &&
+           wall_elapsed() < schedule_.total_budget_seconds &&
            wall_now() >= next_spb_wall_;
 }
 
@@ -312,9 +313,11 @@ bool HybridCoordinator::find_upper_bound(
     if (!result.feasible)
     {
         // CASH does not call on_upper_bound_result() for a rejected candidate,
-        // so this round has to be flushed here or it would be lost.
-        note_round_outcome(false);
+        // so this round has to be flushed here or it would be lost. The event
+        // is pushed before the schedule is updated because note_round_outcome()
+        // annotates the round it just judged.
         events_.push_back(event);
+        note_round_outcome(false);
         flush_pending_events();
         return false;
     }
@@ -348,13 +351,47 @@ bool HybridCoordinator::find_upper_bound(
 
 void HybridCoordinator::note_round_outcome(bool productive)
 {
-    if (!schedule_.adaptive)
+    if (!schedule_.selective && !schedule_.adaptive)
         return;
 
     if (productive)
         barren_rounds_ = 0;
     else if (barren_rounds_ < kMaxBackoffRounds)
         ++barren_rounds_;
+
+    if (schedule_.selective)
+    {
+        const double base = schedule_.cash_window_seconds;
+        if (productive)
+        {
+            next_spb_wall_ = last_round_end_wall_ + base;
+            last_schedule_reason_ = "continue_after_gain";
+        }
+        else if (barren_rounds_ == 1)
+        {
+            // One retry, four base windows later: cheap enough to keep, and the
+            // measured odds of a bare retry are an order of magnitude below an
+            // accepted round.
+            next_spb_wall_ = last_round_end_wall_ + base * 4.0;
+            last_schedule_reason_ = "retry_after_miss";
+        }
+        else
+        {
+            // Two misses in a row: hand the rest of the budget back to CASH and
+            // let it run uninterrupted to the deadline.
+            stopped_ = true;
+            next_spb_wall_ = std::numeric_limits<double>::infinity();
+            last_schedule_reason_ = "stopped_after_two_misses";
+        }
+        if (!events_.empty())
+        {
+            events_.back().schedule_reason = last_schedule_reason_;
+            events_.back().next_handoff_in =
+                stopped_ ? -1.0 : next_spb_wall_ - last_round_end_wall_;
+        }
+        arm_deadline();
+        return;
+    }
 
     // Back off geometrically while SPB keeps returning nothing CASH can
     // use, so an unproductive handoff stops taking a fixed slice out of
@@ -424,6 +461,8 @@ void HybridCoordinator::flush_pending_events()
                    << event.cash_seconds_before_spb
                    << ",\"propagated_original_variables\":"
                    << event.propagated_original_variables
+                   << ",\"schedule_reason\":\"" << json_escape(event.schedule_reason)
+                   << "\",\"next_handoff_in\":" << event.next_handoff_in
                    << ",\"cash_deadline_in\":" << event.cash_deadline_in
                    << ",\"cash_lb_before_spb\":" << event.cash_lb_before_spb
                    << ",\"cash_ub_before_spb\":" << event.cash_ub_before_spb
