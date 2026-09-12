@@ -267,6 +267,15 @@ template <class T> struct LT {bool operator()(T x, T y) { return x.snd->last() <
 
 static int g_strat_policy = STRAT_GEOMETRIC;
 
+// P5/P6: how many soft clauses one assumption level should carry. This is the
+// knob the boundary actually controls -- a level with many clauses makes the
+// SAT call slow, a level with few multiplies the number of rounds -- so P5
+// targets a count directly and P6 moves that target according to how long the
+// previous level actually took.
+static long long g_strat_count = 512;
+static double    g_strat_target_seconds = 20.0;
+static double    g_last_strat_time = -1.0;
+
 // State captured when the main solve loop is left. A hybrid run that stops
 // well before the budget with a gap still open leaves no other trace of why,
 // so the loop tail records what it was holding.
@@ -306,6 +315,17 @@ static weight_t strat_pick_boundary(const MsSolver& S,
                                     const vec<Pair<weight_t, Minisat::vec<Lit>* > >& soft_cls,
                                     int top_for_strat)
 {
+    if (g_strat_policy == STRAT_COUNT || g_strat_policy == STRAT_COUNT_ADAPT) {
+        const long long want = g_strat_count < 1 ? 1 : g_strat_count;
+        long long seen = 0;
+        for (int i = top_for_strat - 1; i >= 0; --i) {
+            if (++seen >= want)
+                return max(lower_bound, (weight_t)soft_cls[i].fst);
+        }
+        // Fewer clauses remain than the target: take the whole remainder.
+        return lower_bound;
+    }
+
     if (g_strat_policy == STRAT_ADAPTIVE) {
         const int arm = g_adapt_arm;
         const int saved = g_strat_policy;
@@ -392,6 +412,24 @@ static weight_t do_stratification(MsSolver& S, vec<weight_t>& sorted_assump_Cs, 
 {
     weight_t  max_assump_Cs = 0;
     weight_t  bound;
+
+    if ((g_strat_policy == STRAT_COUNT_ADAPT) && !flag) {
+        // One level is roughly the time between two re-stratification points.
+        // Aim each level at g_strat_target_seconds and correct by halving or
+        // doubling the clause target, which keeps the balance between SAT call
+        // length and the number of rounds.
+        using namespace std::chrono;
+        const double now = duration<double>(steady_clock::now().time_since_epoch()).count();
+        if (g_last_strat_time > 0) {
+            const double level_seconds = now - g_last_strat_time;
+            if (level_seconds > g_strat_target_seconds && g_strat_count > 32)
+                g_strat_count = std::max<long long>(32, g_strat_count / 2);
+            else if (level_seconds * 3.0 < g_strat_target_seconds && g_strat_count < 65536)
+                g_strat_count = std::min<long long>(65536, g_strat_count * 2);
+        }
+        g_last_strat_time = now;
+    }
+
     if (g_strat_policy == STRAT_ADAPTIVE && !flag && S.LB_goalvalue != Int_MAX) {
         if (g_adapt_have_last) {
             const Int delta = S.LB_goalvalue - g_adapt_last_lb;

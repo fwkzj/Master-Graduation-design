@@ -52,6 +52,8 @@ enum StratBoundaryPolicy {
     STRAT_GAP = 3,       // P3: cut at the largest relative weight gap
     STRAT_COST = 4,      // P4: best mass per assumption, bounded level size
     STRAT_ADAPTIVE = 5,  // S2: online switch between P0 and P2 using LB progress
+    STRAT_COUNT = 6,     // P5: a fixed number of soft clauses per level
+    STRAT_COUNT_ADAPT = 7 // P6: P5 with that number adapted to the measured level time
 };
 
 void set_strat_policy(int policy);

@@ -1,0 +1,12 @@
+MSE23W/causal-discovery_wt-causal_Link_10_1000.wcnf
+MSE23W/causal-discovery_wt-causal_alarm_9_1000.wcnf
+MSE23W/mpmcs_wt-test25--n-5000.wcnf
+MSE23W/warehouses_wt-cap132.wcsp.wcnf
+MSE23W/mpmcs_wt-test36--n-5000.wcnf
+MSE23W/upgradeability_wt-rand981_l2.wcnf
+MSE23W/warehouses_wt-cap92.wcsp.wcnf
+MSE23W/correlation-clustering_wt-Rounded_CorrelationClustering_Protein4_BINARY_N320.wcnf
+MSE23W/causal-discovery_wt-causal_Meta_7_528.wcnf
+MSE23W/css-refactoring_wt-londonist.dimacs.wcnf
+MSE23W/css-refactoring_wt-youtube.dimacs.wcnf
+MSE23W/Security-CriticalCyber-PhysicalComponents_wt-test54--n-15000.wcnf
