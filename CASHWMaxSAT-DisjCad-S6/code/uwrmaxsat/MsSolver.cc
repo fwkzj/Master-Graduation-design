@@ -1172,14 +1172,38 @@ void MsSolver::maxsat_solve(solve_Command cmd)
           // A2: steer the next CDCL calls with the assignment SPB just had
           // verified. Only the original variables carry over; CASH relaxation
           // and sorter variables keep whatever polarity they already had.
+          static int phase_hint_rounds = 0;
+          static int phase_hint_max = -2;
+          if (phase_hint_max == -2) {
+            const char *m = getenv("PHASE_HINT_MAX");
+            phase_hint_max = m ? atoi(m) : -1;   // -1 = unlimited
+          }
+          const bool diff_only = getenv("PHASE_HINT_DIFF") != nullptr;
+          ++phase_hint_rounds;
           std::vector<int> hint;
-          if (hybrid_callback->take_model_hint(hint)) {
+          if (phase_hint_max >= 0 && phase_hint_rounds > phase_hint_max)
+            hint.clear();
+          else if (hybrid_callback->take_model_hint(hint)) {
             const int limit = std::min<int>(pb_n_vars, int(hint.size()) - 1);
+            int applied = 0;
             for (int v = 0; v < limit; ++v) {
               const int value = hint[v + 1];
-              if (value == 0 || value == 1)
-                sat_solver.setPolarity(v, LBOOL(bool(value)));
+              if (value != 0 && value != 1)
+                continue;
+              if (diff_only) {
+                // Leave the variables CASH has not decided yet, and those it
+                // already agrees with, untouched: the hint then only corrects
+                // phases CASH would otherwise keep wrong.
+                const lbool current = sat_solver.value(v);
+                if (current == l_Undef) continue;
+                if ((current == l_True) == (value == 1)) continue;
+              }
+              sat_solver.setPolarity(v, LBOOL(bool(value)));
+              ++applied;
             }
+            if (getenv("PHASE_HINT_VERBOSE") != nullptr)
+              fprintf(stderr, "PHASE_HINT round=%d hint=%d applied=%d diff_only=%d\n",
+                      phase_hint_rounds, limit, applied, (int)diff_only);
           }
         }
       }
