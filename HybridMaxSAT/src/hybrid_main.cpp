@@ -41,7 +41,7 @@ namespace {
 
 enum class Config { CASH, SPB, Hybrid, HybridNoInference, HybridNatural,
                     HybridAdaptive, HybridSelective, HybridLate, HybridPhase,
-                    HybridGate, HybridSafe };
+                    HybridGate, HybridSafe, HybridSafePhase };
 
 const char *config_name(Config config)
 {
@@ -58,6 +58,7 @@ const char *config_name(Config config)
     case Config::HybridPhase: return "HybridPhase";
     case Config::HybridGate: return "HybridGate";
     case Config::HybridSafe: return "HybridSafe";
+    case Config::HybridSafePhase: return "HybridSafePhase";
     }
     return "unknown";
 }
@@ -75,6 +76,11 @@ bool parse_config(const std::string &text, Config &config)
     if (text == "HybridNatural")
     {
         config = Config::HybridNatural;
+        return true;
+    }
+    if (text == "HybridSafePhase")
+    {
+        config = Config::HybridSafePhase;
         return true;
     }
     if (text == "HybridSafe")
@@ -758,11 +764,16 @@ void run_hybrid(const Options &options, RunSummary &summary)
     // the goal interval is narrow, because that is exactly where the extra
     // hardening a lower bound causes drains the assumption queue and CASH
     // returns early with a gap still open.
-    if (options.config == Config::HybridSafe)
+    if (options.config == Config::HybridSafe ||
+        options.config == Config::HybridSafePhase)
     {
         schedule.preemptive = false;
         schedule.gate_min_percent = 20.0;
         schedule.start_fraction = 0.3;
+        // A2 on top of the safe schedule: the handoff count is already tiny
+        // (0.8 per run), so the phase hints are the remaining channel that can
+        // change CASH search rather than its time budget.
+        schedule.phase_hint = options.config == Config::HybridSafePhase;
     }
 
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
@@ -968,6 +979,7 @@ int main(int argc, char *argv[])
         case Config::HybridPhase:
         case Config::HybridGate:
         case Config::HybridSafe:
+        case Config::HybridSafePhase:
             run_hybrid(g_options, g_summary);
             break;
         }

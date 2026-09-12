@@ -274,6 +274,26 @@ static int g_strat_policy = STRAT_GEOMETRIC;
 // previous level actually took.
 static long long g_strat_count = 512;
 static double    g_strat_target_seconds = 20.0;
+static long long g_strat_count_configured = 0;
+
+// P5/P6 level size. Overridable from the environment so a sweep does not need
+// a rebuild: STRAT_N sets the initial target, STRAT_T sets the level-time target
+// P6 adapts towards.
+static long long strat_count_from_env()
+{
+    if (g_strat_count_configured) return g_strat_count;
+    g_strat_count_configured = 1;
+    if (const char *n = getenv("STRAT_N")) {
+        const long long v = atoll(n);
+        if (v >= 1 && v <= 1000000) g_strat_count = v;
+    }
+    if (const char *t = getenv("STRAT_T")) {
+        const double v = atof(t);
+        if (v > 0.1 && v < 10000.0) g_strat_target_seconds = v;
+    }
+    return g_strat_count;
+}
+
 static double    g_last_strat_time = -1.0;
 
 // State captured when the main solve loop is left. A hybrid run that stops
@@ -316,7 +336,7 @@ static weight_t strat_pick_boundary(const MsSolver& S,
                                     int top_for_strat)
 {
     if (g_strat_policy == STRAT_COUNT || g_strat_policy == STRAT_COUNT_ADAPT) {
-        const long long want = g_strat_count < 1 ? 1 : g_strat_count;
+        const long long want = strat_count_from_env() < 1 ? 1 : g_strat_count;
         long long seen = 0;
         for (int i = top_for_strat - 1; i >= 0; --i) {
             if (++seen >= want)
