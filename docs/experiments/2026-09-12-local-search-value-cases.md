@@ -207,10 +207,41 @@ HybridSelective 的显著个例：
 - **10 个对照实例上没有任何一个臂输掉证明**（三个臂都是 30/30）。
 - 真正的损失只有 2 个实例：`tcp_wt-tcp_students_91_it_13`（CASH 2/3，HybridSelective 0/3）与 `timetabling_wt-comp02`（CASH 3/3，HybridSelective/HybridLate 2/3）。HybridSafe 这两处均无损失（因为它不交接）。
 
-## 8. 结论：可以写进论文的三条证据
+## 8. 归属分析：加速到底来自局部搜索，还是来自"打断"本身
 
-1. **证明数量（可复现）**：`HybridLate` 在 `shiftdesign_wt-limits-10-10_data-2_inst-025_30m.sm-extracted.wcnf` 上把 CASH 的 0/3 变成 3/3；在 `tcp_wt-tcp_students_91_it_13.wcnf` 上从 2/3 提到 3/3。A 组总计 **12 vs CASH 8**，且 10 个对照实例零损失。这是"局部搜索确实能多证明"的唯一站得住脚的算例组，应当作为核心案例。
-2. **收敛效率（可复现）**：`HybridSelective` 在 33 个可比实例里 15 个快 ≥10%，中位比值 0.92，最佳 `relational-inference_wt-ar-3` 4 倍加速（135s→34s）。代价是 8 个实例变慢（最差 1.32）。
-3. **随时求解质量（可复现且幅度最大）**：15/15 实例、3 个 seed 全部一致，降幅 21–100%；`setcover` 与 `ramsey` 达 100%，`staff-scheduling` 93–96%。这一条证据强度最高，建议作为"加入局部搜索有效"的主证据，而证明数量作为辅证。
+统计每个 `HybridSelective` 运行里"交接次数 / SPB 返回可行解次数 / CASH 接受次数"，再看它与加速的关系（上表为 3 个 seed 的合计）：
 
-**同时必须写进论文的负面结果**：`HybridSafe` 之所以在全集上打平 CASH，是因为它几乎不交接（等同基线）；而真正带来收益的 `HybridSelective` 会输掉约 4 个证明。所以"既保住证明数、又拿到 UB/收敛收益"的组合策略仍然是未解决问题——这是本工作的诚实边界，也是下一步的着力点。
+| 指标 | 值 |
+| --- | --- |
+| 全部运行中被接受的交接 | 188 次 |
+| 有任一次交接被接受的实例 | 36 个 |
+| **加速实例中"有被接受交接"的** | **8 个** |
+| **加速实例中"没有任何被接受交接"的** | **7 个** |
+
+7 个无法归因于局部搜索的加速里，有两个（`relational-inference_wt-ar-1`、`ar-3`）**全程 0 次交接**——这两个配置在行为上与 CASH 完全相同却快了 2–4 倍（135s→34s）。也就是说，之前 §2 里最漂亮的"4 倍加速"**是测量噪声，不是局部搜索的贡献**。
+
+把这条规则套回 A 类：
+
+| A 类实例 | SPB 是否返回过可行解 | 被接受的交接 | 真实机制 |
+| --- | --- | --- | --- |
+| **`shiftdesign_…-025_30m`**（HybridLate 3/3） | **从未**（每一轮 `spb_ub=-1`） | **0** | 交接改变了 CASH 的 CDCL 轨迹，**不是局部搜索的功劳** |
+| `tcp_wt-tcp_students_91_it_13` | 有（3 次被接受） | 3 | 局部搜索给出更好上界 |
+| 其余 3 个 | — | — | 未复现 / 原记录为噪声 |
+
+## 9. 顺带发现的两个工程问题
+
+1. **`HybridSafe` / `HybridSelective` 在 `shiftdesign_…-025_30m` 上 3 个 seed 全部以 `budget_watchdog` 结束且 `final_lb=final_ub=n/a`**（6 次运行产出不可用记录，wall≈614s > 600s 预算）。`run_batch.py` 没有把它标成问题，因为 `exit_reason` 是 `budget_watchdog` 而不是 `*_no_bounds`。这是混合配置特有的失败模式（同实例的 CASH 正常退出并带界）。
+2. **单批次"证明耗时"比较在当前噪声水平下不可靠**：同一提交、同一 seed，甚至会出现在"两个配置行为完全相同"的情况下相差 2–4 倍的情形。要在论文里用"收敛时间"做指标，必须同实例多轮交错运行，或用同一批内的配对重复。
+
+## 10. 结论：能写进论文的证据与不能写的
+
+**可以写（机制清楚、可复现）**
+
+1. **随时求解质量是唯一强证据**：15/15 实例 × 3 seed 全部一致，UB 降幅 21–100%（setcover 与 ramsey 达 100%，staff-scheduling 93–96%，correlation-clustering 21–94%）。机制明确——这些实例每 3 个 seed 有 4–14 次交接被 CASH 接受，即 SPB 确实找到了远优的可行解并被采用。
+2. **收敛效率有 8 个站得住脚的算例**（加速且有 ≥2 次被接受的交接）：`frb_wt-frb30-15-3`（336s→243s）、`protein_ins_wt-3ebx`（312s→242s）、`quantum-circuit-su2random_5_30`（266s→210s）、`tcp_wt-tcp_students_91_it_14`（63s→37s）、`tcp_wt-tcp_students_105_it_8`（100s→78s）、`protein_ins_wt-1bpi`（126s→107s）、`quantum-circuit-portfoliovqe_4_18`（63s→53s）、`quantum-circuit-su2random_4_18`（63s→52s）。用 `HybridSelective` 作为该证据的配置。
+
+**不能写或必须限定**
+
+3. **"多证明"不成立**：原 A 类 5 个里 2 个复查为噪声（CASH 3/3），1 个未复现，剩下最干净的那个（`shiftdesign`）经归属分析证明与局部搜索无关（SPB 从未返回可行解，机制是交接打断了 CASH 的搜索）。`HybridLate` 的 +3 因此不能作为"局部搜索提高证明数"的证据。
+4. **`HybridSafe` 不是"最佳混合配置"，而是近乎退化为 CASH**：整批 104 vs 104、0 个更快实例、UB 无任何改善。它之所以在全集上"打平"，是因为它几乎不交接。凡是要展示局部搜索价值的实验都不该用它。
+5. **收益与代价不可兼得（当前）**：带来 UB/加速收益的 `HybridSelective` 会输掉 2 个算例的证明（`tcp_wt-tcp_students_91_it_13` 2/3→0/3、`timetabling_wt-comp02` 3/3→2/3）。"既保住证明数又拿到 UB 收益"仍是未解决问题。
