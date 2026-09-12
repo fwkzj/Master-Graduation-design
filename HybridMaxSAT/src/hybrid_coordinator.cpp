@@ -236,7 +236,15 @@ bool HybridCoordinator::should_run(double)
         if (gap > 0 && ub > 0) {
             const double relative = 100.0 * (double)gap / (double)ub;
             if (relative < schedule_.gate_min_percent)
+            {
+                // Not now, not never: push the next check one window out and
+                // re-arm the terminator for it. Leaving it at a window that
+                // has already passed would abort every following SAT call on
+                // entry, starving CASH rather than merely interrupting it.
+                next_spb_wall_ = wall_now() + schedule_.cash_window_seconds;
+                arm_deadline();
                 return false;   // too close to the endgame; leave it to CASH
+            }
         }
     }
     if (schedule_.threshold_gate && schedule_.gate_percent > 0.0) {
@@ -250,11 +258,26 @@ bool HybridCoordinator::should_run(double)
     }
     // Hard caps: the local-search channel is closed for the rest of the
     // run once either budget is exhausted, and CASH finishes alone.
+    // Once either cap is reached the channel is closed for the rest of the
+    // run, and the terminator is re-armed for the end-to-end budget so that
+    // CASH gets every remaining second uninterrupted. Leaving it at the
+    // last window boundary would arm it at a time that has already passed,
+    // and cash_deadline_reached() then answers "expired" to every poll.
     if (schedule_.max_rounds > 0 && round_ >= schedule_.max_rounds)
+    {
+        stopped_ = true;
+        arm_cash_deadline(instance_start_wall_ +
+                          schedule_.total_budget_seconds);
         return false;
+    }
     if (schedule_.max_spb_seconds > 0.0 &&
         spb_seconds_spent_ >= schedule_.max_spb_seconds)
+    {
+        stopped_ = true;
+        arm_cash_deadline(instance_start_wall_ +
+                          schedule_.total_budget_seconds);
         return false;
+    }
     return true;
 }
 

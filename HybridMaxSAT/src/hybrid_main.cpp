@@ -897,6 +897,13 @@ void run_hybrid(const Options &options, RunSummary &summary)
         schedule.start_fraction = 0.5;
         schedule.max_rounds = 3;
         schedule.max_spb_seconds = 0.05 * options.budget_seconds;
+        // The first version of this configuration (commit 1ce14fa, batch
+        // guarded_full) had no gate and lost six proofs CASH got. Every one
+        // of those handoffs sat below 15% on harden_gap_to_next/UB -- CASH
+        // was already closing in -- while every handoff that produced the
+        // upper-bound gains sits above 55%. A 20% floor keeps the gain and
+        // refuses the endgame interruption.
+        schedule.gate_min_percent = 20.0;
     }
 
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
