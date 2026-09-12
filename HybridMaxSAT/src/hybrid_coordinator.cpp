@@ -230,6 +230,15 @@ bool HybridCoordinator::should_run(double)
         return false;
     if (wall_now() < next_spb_wall_)
         return false;
+    if (schedule_.gate_min_percent > 0.0) {
+        const long long gap = to_log_value(pending_hardening_.gap_to_next);
+        const long long ub = to_log_value(pending_hardening_.upper_bound);
+        if (gap > 0 && ub > 0) {
+            const double relative = 100.0 * (double)gap / (double)ub;
+            if (relative < schedule_.gate_min_percent)
+                return false;   // too close to the endgame; leave it to CASH
+        }
+    }
     if (schedule_.threshold_gate && schedule_.gate_percent > 0.0) {
         const long long gap = to_log_value(pending_hardening_.gap_to_next);
         const long long ub = to_log_value(pending_hardening_.upper_bound);

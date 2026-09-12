@@ -74,6 +74,11 @@ struct HybridSchedule {
     // cannot change the exact search, so the time is better left to CASH.
     bool threshold_gate = false;
     double gate_percent = 5.0;
+    // Refuse to hand off while the goal interval is narrower than this
+    // percentage of the upper bound. Measured on frb_wt-frb25-13-5: a handoff
+    // during the closing phase drains CASH assumption queue through the extra
+    // hardening the lower bound causes, and CASH then returns with a gap.
+    double gate_min_percent = 0.0;
     // Fraction of the end-to-end budget to wait before the first handoff. Zero
     // starts at the first window. A late start keeps CASH uninterrupted while
     // it is still hardening soft clauses cheaply on its own.

@@ -41,7 +41,7 @@ namespace {
 
 enum class Config { CASH, SPB, Hybrid, HybridNoInference, HybridNatural,
                     HybridAdaptive, HybridSelective, HybridLate, HybridPhase,
-                    HybridGate };
+                    HybridGate, HybridSafe };
 
 const char *config_name(Config config)
 {
@@ -57,6 +57,7 @@ const char *config_name(Config config)
     case Config::HybridLate: return "HybridLate";
     case Config::HybridPhase: return "HybridPhase";
     case Config::HybridGate: return "HybridGate";
+    case Config::HybridSafe: return "HybridSafe";
     }
     return "unknown";
 }
@@ -74,6 +75,11 @@ bool parse_config(const std::string &text, Config &config)
     if (text == "HybridNatural")
     {
         config = Config::HybridNatural;
+        return true;
+    }
+    if (text == "HybridSafe")
+    {
+        config = Config::HybridSafe;
         return true;
     }
     if (text == "HybridGate")
@@ -194,6 +200,10 @@ struct RunSummary {
     long long spb_certificate_ub = -1;
     // Cadical consultations of the deadline terminator. See the header.
     long long cash_deadline_polls = 0;
+    // State when CASH left its main solve loop; -1 means unknown.
+    long long exit_assumps = -1;
+    long long exit_delayed = -1;
+    int exit_top_for_strat = -1;
     // The SCIP limit actually applied, which may be derived from the window.
     double scip_seconds = 0.0;
     std::string exit_reason = "completed";
@@ -213,8 +223,10 @@ void fill_from_solver(MsSolver &solver, RunSummary &summary)
     summary.final_lb = solver.LB_goalvalue;
     summary.final_ub = solver.UB_goalvalue;
     summary.final_incumbent = solver.best_goalvalue;
+    // LB equal to best_goalvalue is the proof, whoever stopped the run: a
+    // budget or hybrid stop that lands exactly on the closing bound does not
+    // invalidate it. Guarding on asynch_interrupt threw those proofs away.
     summary.cash_proved_optimal =
-        !solver.asynch_interrupt &&
         solver.best_goalvalue != Int_MAX &&
         solver.LB_goalvalue == solver.best_goalvalue;
 #ifdef USE_SCIP
@@ -233,6 +245,9 @@ void fill_from_solver(MsSolver &solver, RunSummary &summary)
     }
 #endif
     summary.cash_deadline_polls = hybridmaxsat::cash_deadline_polls();
+    summary.exit_assumps = cash_exit_assumps();
+    summary.exit_delayed = cash_exit_delayed();
+    summary.exit_top_for_strat = cash_exit_top_for_strat();
 }
 
 std::string build_run_complete_line(const Options &options,
@@ -248,6 +263,9 @@ std::string build_run_complete_line(const Options &options,
          << ",\"seed\":" << options.seed
          << ",\"budget_seconds\":" << options.budget_seconds
          << ",\"strat_policy\":" << options.strat_policy
+         << ",\"exit_assumps\":" << summary.exit_assumps
+         << ",\"exit_delayed\":" << summary.exit_delayed
+         << ",\"exit_top_for_strat\":" << summary.exit_top_for_strat
          << ",\"start_epoch\":" << start_epoch
          << ",\"end_epoch\":" << end_epoch
          << ",\"wall_seconds\":" << (end_epoch - start_epoch)
@@ -736,6 +754,16 @@ void run_hybrid(const Options &options, RunSummary &summary)
         schedule.threshold_gate = true;
         schedule.start_fraction = 0.3;
     }
+    // HybridSafe is HybridGate with the gate inverted: it never hands off while
+    // the goal interval is narrow, because that is exactly where the extra
+    // hardening a lower bound causes drains the assumption queue and CASH
+    // returns early with a gap still open.
+    if (options.config == Config::HybridSafe)
+    {
+        schedule.preemptive = false;
+        schedule.gate_min_percent = 20.0;
+        schedule.start_fraction = 0.3;
+    }
 
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
     // that is the whole point of the handoff. The default (0) means the SCIP
@@ -939,6 +967,7 @@ int main(int argc, char *argv[])
         case Config::HybridLate:
         case Config::HybridPhase:
         case Config::HybridGate:
+        case Config::HybridSafe:
             run_hybrid(g_options, g_summary);
             break;
         }

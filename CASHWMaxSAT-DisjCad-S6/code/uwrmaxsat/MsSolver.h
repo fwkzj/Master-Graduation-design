@@ -55,6 +55,10 @@ enum StratBoundaryPolicy {
 };
 
 void set_strat_policy(int policy);
+// State captured when the main solve loop is left (for diagnosing early stops).
+long long cash_exit_assumps();
+long long cash_exit_delayed();
+int       cash_exit_top_for_strat();
 int  get_strat_policy();
 
 // Read-only view of the hardening state, reported at every scheduling point.

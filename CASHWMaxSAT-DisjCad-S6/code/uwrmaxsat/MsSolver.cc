@@ -267,6 +267,16 @@ template <class T> struct LT {bool operator()(T x, T y) { return x.snd->last() <
 
 static int g_strat_policy = STRAT_GEOMETRIC;
 
+// State captured when the main solve loop is left. A hybrid run that stops
+// well before the budget with a gap still open leaves no other trace of why,
+// so the loop tail records what it was holding.
+static long long g_exit_assumps = -1;
+static long long g_exit_delayed = -1;
+static int       g_exit_top_for_strat = -1;
+long long cash_exit_assumps() { return g_exit_assumps; }
+long long cash_exit_delayed() { return g_exit_delayed; }
+int       cash_exit_top_for_strat() { return g_exit_top_for_strat; }
+
 // S2 controller state: a two-arm choice between the historical geometric cut
 // (arm 0) and the hardening-aligned cut (arm 1). The reward used to keep or
 // flip the arm is the lower-bound progress the previous level bought, which is
@@ -1791,6 +1801,10 @@ SwitchSearchMethod:
       if (constrs.size() > 0) convertPbs(false);
 
     } while (1);
+
+    g_exit_assumps = (long long)assump_ps.size();
+    g_exit_delayed = delayed_assump.empty() ? 0 : (long long)delayed_assump.size();
+    g_exit_top_for_strat = top_for_strat;
 
     if (status == l_False && opt_output_top > 0) printf("v\n");
     if (goal_gcd != 1) {
