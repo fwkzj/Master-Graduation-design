@@ -39,15 +39,16 @@ namespace {
 // ---------------------------------------------------------------------------
 // Configuration
 
-enum class Config { CASH, SPB, Hybrid, HybridNoInference, HybridNatural,
-                    HybridAdaptive, HybridSelective, HybridLate, HybridPhase,
-                    HybridGate, HybridSafe, HybridSafePhase };
+enum class Config { CASH, CASHOracleUB, SPB, Hybrid, HybridNoInference,
+                    HybridNatural, HybridAdaptive, HybridSelective, HybridLate,
+                    HybridPhase, HybridGate, HybridSafe, HybridSafePhase };
 
 const char *config_name(Config config)
 {
     switch (config)
     {
     case Config::CASH: return "CASH";
+    case Config::CASHOracleUB: return "CASHOracleUB";
     case Config::SPB: return "SPB";
     case Config::Hybrid: return "Hybrid";
     case Config::HybridNoInference: return "HybridNoInference";
@@ -66,6 +67,7 @@ const char *config_name(Config config)
 bool parse_config(const std::string &text, Config &config)
 {
     if (text == "CASH") { config = Config::CASH; return true; }
+    if (text == "CASHOracleUB") { config = Config::CASHOracleUB; return true; }
     if (text == "SPB") { config = Config::SPB; return true; }
     if (text == "Hybrid") { config = Config::Hybrid; return true; }
     if (text == "HybridNoInference")
@@ -133,6 +135,10 @@ struct Options {
     double scip_seconds = 0.0;
     // S line: which stratification boundary policy the exact solver uses.
     int strat_policy = 0;
+    // Oracle-UB ablation: a per-instance table of externally verified
+    // upper bounds, keyed by the relative instance id. Empty means the
+    // path is taken from the ORACLE_UB_MAP environment variable instead.
+    std::string oracle_ub_map;
     std::string instance_id;
     std::string input_path;
     std::string events_path;
@@ -569,12 +575,44 @@ void apply_maxsat_options()
 // the callback stops the run at the deadline, and the harness (scripts/
 // run_batch.py) enforces the same deadline as a hard backstop for the case
 // where CASH never returns to a scheduling point.
+// Reads a two-column table -- "<relative instance id>\t<upper bound>" --
+// and returns the bound recorded for this instance, or -1 when there is no
+// entry for it. A missing entry is not an error: the ablation compares "an
+// externally verified upper bound CASH would not have found on its own"
+// against "no external bound at all", and an instance the earlier SPB runs
+// never improved simply has nothing to inject.
+long long load_oracle_ub(const std::string &path,
+                         const std::string &instance_id)
+{
+    std::ifstream table(path.c_str());
+    if (!table)
+        throw std::runtime_error("cannot open oracle UB table: " + path);
+    std::string line;
+    while (std::getline(table, line))
+    {
+        if (line.empty() || line[0] == '#')
+            continue;
+        const std::string::size_type tab = line.find('\t');
+        if (tab == std::string::npos)
+            continue;
+        if (line.compare(0, tab, instance_id) != 0)
+            continue;
+        std::istringstream value(line.substr(tab + 1));
+        long long bound = -1;
+        value >> bound;
+        return bound > 0 ? bound : -1;
+    }
+    return -1;
+}
+
 class CashOnlyCallback final : public HybridMaxSatCallback {
   public:
     CashOnlyCallback(int budget_seconds, const std::string &events_path,
-                     const std::string &instance_id)
+                     const std::string &instance_id,
+                     long long oracle_ub = -1)
         : budget_seconds_(budget_seconds)
         , instance_id_(instance_id)
+        , oracle_ub_(oracle_ub)
         , start_wall_(std::chrono::steady_clock::now())
     {
         event_log_.open(events_path.c_str());
@@ -590,7 +628,15 @@ class CashOnlyCallback final : public HybridMaxSatCallback {
         return &hybridmaxsat::cash_deadline_reached;
     }
 
-    bool should_run(double) override { return false; }
+    // The oracle configuration asks for exactly one handover, at the first
+    // scheduling point CASH reaches -- normally within a second of the start,
+    // before any core has been extracted. Afterwards the callback is inert, so
+    // every remaining second of the budget belongs to CASH and the bound's
+    // effect is not entangled with the cost of the search that produced it.
+    bool should_run(double) override
+    {
+        return oracle_ub_ > 0 && !oracle_done_;
+    }
 
     bool should_stop(double) override
     {
@@ -603,10 +649,36 @@ class CashOnlyCallback final : public HybridMaxSatCallback {
             budget_seconds_;
     }
 
-    bool find_upper_bound(const std::vector<int> &, const Int &, const Int &,
-                          Int &) override
+    bool find_upper_bound(const std::vector<int> &, const Int &lower_bound,
+                          const Int &current_upper_bound,
+                          Int &candidate_upper_bound) override
     {
-        return false;
+        // No local search runs here: the single bound handed over is the one
+        // recorded for this instance from earlier SPB runs.
+        if (oracle_ub_ <= 0 || oracle_done_)
+            return false;
+        oracle_done_ = true;
+        const Int candidate((int64_t)oracle_ub_);
+        if (candidate >= current_upper_bound)
+            return false;
+        if (candidate < lower_bound)
+            return false;
+        candidate_upper_bound = candidate;
+        if (event_log_.is_open())
+        {
+            const double elapsed = std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - start_wall_).count();
+            event_log_ << "{\"event\":\"oracle_ub\",\"instance\":\""
+                       << json_escape(instance_id_)
+                       << "\",\"t\":" << elapsed
+                       << ",\"ub\":" << oracle_ub_
+                       << ",\"lb\":" << (lower_bound == Int_MAX ? -1 : tolong(lower_bound))
+                       << ",\"cash_ub_before\":"
+                       << (current_upper_bound == Int_MAX ? -1 : tolong(current_upper_bound))
+                       << "}\n";
+            event_log_.flush();
+        }
+        return true;
     }
 
     // The baseline never hands off, but it still publishes its bounds at every
@@ -641,6 +713,8 @@ class CashOnlyCallback final : public HybridMaxSatCallback {
   private:
     int budget_seconds_;
     std::string instance_id_;
+    long long oracle_ub_ = -1;
+    bool oracle_done_ = false;
     std::ofstream event_log_;
     double last_progress_ = 0.0;
     bool wrote_progress_ = false;
@@ -664,10 +738,34 @@ void run_cash(const Options &options, RunSummary &summary)
     prepare_cash_globals(cash_solver);
     set_strat_policy(options.strat_policy);
 
+    // CASHOracleUB is the CASH baseline plus one externally verified upper
+    // bound. The bound comes from a table recorded from earlier SPB runs, so
+    // the local search itself never executes here and cannot consume any of
+    // this run's budget; the run is byte-for-byte the baseline otherwise.
+    long long oracle_ub = -1;
+    if (options.config == Config::CASHOracleUB)
+    {
+        std::string table = options.oracle_ub_map;
+        if (table.empty())
+        {
+            const char *from_env = getenv("ORACLE_UB_MAP");
+            if (from_env != NULL)
+                table = from_env;
+        }
+        if (table.empty())
+            throw std::runtime_error(
+                "CASHOracleUB needs --oracle-ub-map or ORACLE_UB_MAP");
+        oracle_ub = load_oracle_ub(table, options.instance_id);
+        if (oracle_ub <= 0)
+            std::cerr << "hybridmaxsat: no oracle UB recorded for "
+                      << options.instance_id
+                      << ", falling back to the CASH baseline" << std::endl;
+    }
+
     // The budget covers parsing as well, matching the coordinator's clock.
     hybridmaxsat::set_cash_deadline(steady_now() + options.budget_seconds);
     CashOnlyCallback callback(options.budget_seconds, options.events_path,
-                              options.instance_id);
+                              options.instance_id, oracle_ub);
     cash_solver.set_hybrid_callback(&callback);
 
     parse_WCNF_file(const_cast<char *>(options.input_path.c_str()), cash_solver);
@@ -882,6 +980,10 @@ Options parse_options(int argc, char *argv[])
             if (options.scip_seconds < 0)
                 throw std::invalid_argument("--scip-cpu must not be negative");
         }
+        else if (name == "--oracle-ub-map")
+        {
+            options.oracle_ub_map = value;
+        }
         else if (name == "--instance-id")
         {
             options.instance_id = value;
@@ -906,10 +1008,11 @@ Options parse_options(int argc, char *argv[])
 
 void print_usage()
 {
-    std::cerr << "usage: hybridmaxsat [--config CASH|SPB|Hybrid|HybridNoInference|HybridNatural|HybridAdaptive|HybridSelective]\n"
+    std::cerr << "usage: hybridmaxsat [--config CASH|CASHOracleUB|SPB|Hybrid|HybridNoInference|HybridNatural|HybridAdaptive|HybridSelective]\n"
               << "                    [--seed N] [--budget SECONDS]\n"
               << "                    [--cash-window SECONDS] [--spb-window SECONDS]\n"
               << "                    [--scip-cpu SECONDS]\n"
+              << "                    [--oracle-ub-map PATH]\n"
               << "                    [--instance-id RELATIVE_PATH]\n"
               << "                    <input.wcnf> <events.jsonl>" << std::endl;
 }
@@ -947,14 +1050,18 @@ int main(int argc, char *argv[])
         // below the harness's own grace (run_batch.py HARNESS_GRACE) so
         // the run still writes its own record instead of being signalled.
         const int watchdog_grace =
-            g_options.config == Config::SPB ? 5
-                                            : g_options.spb_window_seconds + 3;
+            (g_options.config == Config::SPB ||
+             g_options.config == Config::CASHOracleUB)
+                ? 5
+                : g_options.spb_window_seconds + 3;
         start_watchdog(g_options.budget_seconds, watchdog_grace);
 
         // The coordinator owns the round log for the hybrid configurations; the
         // other two still produce the file so that every run directory has the
         // same shape.
-        if (g_options.config == Config::CASH || g_options.config == Config::SPB)
+        if (g_options.config == Config::CASH ||
+            g_options.config == Config::CASHOracleUB ||
+            g_options.config == Config::SPB)
         {
             std::ofstream empty(g_options.events_path.c_str());
             if (!empty)
@@ -965,6 +1072,7 @@ int main(int argc, char *argv[])
         switch (g_options.config)
         {
         case Config::CASH:
+        case Config::CASHOracleUB:
             run_cash(g_options, g_summary);
             break;
         case Config::SPB:

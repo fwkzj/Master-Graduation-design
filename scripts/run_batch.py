@@ -33,7 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-ALL_CONFIGS = ["CASH", "SPB", "Hybrid", "HybridNoInference",
+ALL_CONFIGS = ["CASH", "CASHOracleUB", "SPB", "Hybrid", "HybridNoInference",
                "HybridNatural", "HybridAdaptive", "HybridSelective", "HybridLate", "HybridPhase", "HybridGate", "HybridSafe", "HybridSafePhase"]
 ALL_SEEDS = [20260909, 20260910, 20260911]
 
