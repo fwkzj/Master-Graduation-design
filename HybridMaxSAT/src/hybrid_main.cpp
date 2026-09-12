@@ -41,7 +41,8 @@ namespace {
 
 enum class Config { CASH, CASHOracleUB, SPB, Hybrid, HybridNoInference,
                     HybridNatural, HybridAdaptive, HybridSelective, HybridLate,
-                    HybridPhase, HybridGate, HybridSafe, HybridSafePhase };
+                    HybridPhase, HybridGate, HybridSafe, HybridSafePhase,
+                    HybridGuarded };
 
 const char *config_name(Config config)
 {
@@ -60,6 +61,7 @@ const char *config_name(Config config)
     case Config::HybridGate: return "HybridGate";
     case Config::HybridSafe: return "HybridSafe";
     case Config::HybridSafePhase: return "HybridSafePhase";
+    case Config::HybridGuarded: return "HybridGuarded";
     }
     return "unknown";
 }
@@ -113,6 +115,11 @@ bool parse_config(const std::string &text, Config &config)
     if (text == "HybridAdaptive")
     {
         config = Config::HybridAdaptive;
+        return true;
+    }
+    if (text == "HybridGuarded")
+    {
+        config = Config::HybridGuarded;
         return true;
     }
     return false;
@@ -874,6 +881,24 @@ void run_hybrid(const Options &options, RunSummary &summary)
         schedule.phase_hint = options.config == Config::HybridSafePhase;
     }
 
+    // HybridGuarded is the answer to the one question the curated set made
+    // concrete: can local search be used for real -- not degenerating into
+    // CASH -- without paying for it in proofs? It keeps the preemptive
+    // handoff (without preemption 13 of the 15 upper-bound-rich instances
+    // never hand off at all, because a single CASH SAT call swallows the
+    // rest of the budget), starts late like HybridLate, and then closes the
+    // channel after a fixed number of rounds and a fixed share of the
+    // budget. Measured on the curated set the first round alone delivers a
+    // median 99.8% of the total upper-bound improvement, so the cap costs
+    // little of the gain and removes most of the interruption.
+    if (options.config == Config::HybridGuarded)
+    {
+        schedule.selective = true;
+        schedule.start_fraction = 0.5;
+        schedule.max_rounds = 3;
+        schedule.max_spb_seconds = 0.05 * options.budget_seconds;
+    }
+
     // A CASH window is cash_window_seconds long, so SCIP may not overrun it:
     // that is the whole point of the handoff. The default (0) means the SCIP
     // call would run until it solved the instance or the budget killed it, and
@@ -1008,7 +1033,7 @@ Options parse_options(int argc, char *argv[])
 
 void print_usage()
 {
-    std::cerr << "usage: hybridmaxsat [--config CASH|CASHOracleUB|SPB|Hybrid|HybridNoInference|HybridNatural|HybridAdaptive|HybridSelective]\n"
+    std::cerr << "usage: hybridmaxsat [--config CASH|CASHOracleUB|SPB|Hybrid|HybridNoInference|HybridNatural|HybridAdaptive|HybridSelective|HybridGuarded]\n"
               << "                    [--seed N] [--budget SECONDS]\n"
               << "                    [--cash-window SECONDS] [--spb-window SECONDS]\n"
               << "                    [--scip-cpu SECONDS]\n"
@@ -1088,6 +1113,7 @@ int main(int argc, char *argv[])
         case Config::HybridGate:
         case Config::HybridSafe:
         case Config::HybridSafePhase:
+        case Config::HybridGuarded:
             run_hybrid(g_options, g_summary);
             break;
         }

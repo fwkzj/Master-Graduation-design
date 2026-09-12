@@ -248,6 +248,13 @@ bool HybridCoordinator::should_run(double)
         if (relative > schedule_.gate_percent)
             return false;
     }
+    // Hard caps: the local-search channel is closed for the rest of the
+    // run once either budget is exhausted, and CASH finishes alone.
+    if (schedule_.max_rounds > 0 && round_ >= schedule_.max_rounds)
+        return false;
+    if (schedule_.max_spb_seconds > 0.0 &&
+        spb_seconds_spent_ >= schedule_.max_spb_seconds)
+        return false;
     return true;
 }
 
@@ -349,6 +356,7 @@ bool HybridCoordinator::find_upper_bound(
     event.spb_setup_seconds = spb_solver_.last_setup_seconds();
     event.spb_verify_seconds = spb_solver_.last_verify_seconds();
     event.spb_call_seconds = spb_call_end - spb_call_start;
+    spb_seconds_spent_ += event.spb_call_seconds;
     last_round_end_wall_ = spb_call_end;
     next_spb_wall_ = last_round_end_wall_ + schedule_.cash_window_seconds;
     arm_deadline();

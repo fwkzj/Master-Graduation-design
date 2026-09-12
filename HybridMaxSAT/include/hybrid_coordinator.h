@@ -91,6 +91,13 @@ struct HybridSchedule {
     // schedule stays deterministic and reproducible from the event
     // stream. See note_round_outcome().
     bool adaptive = false;
+    // Hard caps on the local-search channel. The upper-bound gain is
+    // front-loaded -- measured on the curated set, the first round delivers
+    // a median 99.8% of the total improvement -- while every extra round
+    // interrupts CASH again. A cap therefore keeps most of the gain for a
+    // fraction of the disruption. Zero means "no cap".
+    int max_rounds = 0;
+    double max_spb_seconds = 0.0;
 };
 
 struct RoundEvent {
@@ -205,6 +212,9 @@ class HybridCoordinator final : public HybridMaxSatCallback {
     // schedule measures its next gap from there, not from whenever
     // CASH got around to reporting the round's verdict.
     double last_round_end_wall_ = 0.0;
+    // Wall-clock seconds spent inside local search so far, the quantity
+    // schedule_.max_spb_seconds caps.
+    double spb_seconds_spent_ = 0.0;
     // Consecutive rounds SPB could not improve. Drives the backoff.
     int barren_rounds_ = 0;
     // Set once the selective policy has given up on handing off.
